@@ -15,7 +15,7 @@ async function connectionHandler(func) {
     try {
         connection = await getConnection();
         console.log("Successfully connected to Oracle Database");
-        await func(connection);
+        return await func(connection);
     } catch (err) {
         console.error(err);
     } finally {
@@ -27,6 +27,20 @@ async function connectionHandler(func) {
             }
         }
     }
+}
+
+async function getRegioncdFromDB() {
+
+    return await connectionHandler(async (connection) => {
+        // SELECT regioncd
+        let result = await connection.execute(`select id, sido_cd||sgg_cd region_cd, locatadd_nm from regioncd`, [], { resultSet: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
+        const rs = result.resultSet; let row, rows = [];
+        while ((row = await rs.getRow())) {
+            rows.push(row);
+        }
+        await rs.close();
+        return rows;
+    });
 }
 
 async function createRegionCdTable() {
@@ -66,4 +80,5 @@ async function insertMany(table, columns, rows) {
         await rs.close();
     });
 }
-export default { insertMany, createRegionCdTable };
+
+export default { insertMany, createRegionCdTable, getRegioncdFromDB };

@@ -1,8 +1,8 @@
 import request from 'request-promise';
 import convert from 'xml-js';
 import secrets from "../config/secrets.json" with { type: "json" };
-import util from "../util/xml-js.util.js";
-import { getRegioncdFromDB } from "./oracle_get_sggcd.js";
+import xmlUtil from "../util/xml-js.util.js";
+import oracleUtil from '../util/oracle.util.js';
 
 // let regioncdArr = await getRegioncd();
 let regioncdArr = ["11170"]; // 임시 테스트용
@@ -18,7 +18,7 @@ async function recursiveRequestRTMSDataSvcRHRent(LAWD_CD, YEARMONTH, numOfRows) 
         let response = await request.get(makeRTMSDataSvcRHRentUri(pageNo, numOfRows, LAWD_CD, YEARMONTH), function (error, response, body) { });
         let header, rows;
         {
-            let jsonbody = convert.xml2js(response, util.options);
+            let jsonbody = convert.xml2js(response, xmlUtil.options);
             header = jsonbody.response.header;
             // head = {
             //     numOfRows: jsonbody.response.body.numOfRows,
@@ -37,7 +37,7 @@ async function recursiveRequestRTMSDataSvcRHRent(LAWD_CD, YEARMONTH, numOfRows) 
 }
 
 function makeRTMSDataSvcRHRentUri(pageNo, numOfRows, LAWD_CD, YEARMONTH) {
-    let uri = `https://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent?serviceKey=${secrets.apikey.RTMSDataSvcRHRent}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
+    let uri = `https://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent?serviceKey=${secrets.apikey.getRTMSDataSvcRHRent}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
     console.log(uri);
     return {
         uri: uri,
@@ -46,9 +46,9 @@ function makeRTMSDataSvcRHRentUri(pageNo, numOfRows, LAWD_CD, YEARMONTH) {
 
 // 시군구 단위 법정동코드 배열 반환
 async function getRegioncd() {
-    let list = await getRegioncdFromDB();
+    let list = await oracleUtil.getRegioncdFromDB();
 
-    // 구 단위 법정동코드 배열로 변환
+    // 구 단위 법정동코드 목록을 배열로 변환
     let regioncdArr = [];
     list.forEach(row => {
         regioncdArr.push(row.REGION_CD);

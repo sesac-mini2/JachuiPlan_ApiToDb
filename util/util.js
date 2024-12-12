@@ -1,4 +1,6 @@
-function pick(obj, ...props) {
+import config from '../config/config.js';
+
+function pick(obj, props) {
     return props.reduce((result, prop) => {
         if (obj.hasOwnProperty(prop))
             result[prop] = obj[prop];
@@ -16,5 +18,11 @@ function objectToArray(obj, mapping) {
     });
 }
 
+function checkAllowedTable(table) {
+    if (!config.allowedTables.includes(table)) {
+        throw new Error('Invalid table name');
+    }
+}
 
-export { pick, objectToArray };
+
+export { pick, objectToArray, checkAllowedTable };

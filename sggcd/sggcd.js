@@ -9,7 +9,7 @@ function getRegionCdFromJson() {
 
     console.log(sggcd.StanReginCd.row.length);
     console.log(gu.length);
-    gu = gu.map(row => pick(row, config.regionCdMapping[0], config.regionCdMapping[1], config.regionCdMapping[2]));
+    gu = gu.map(row => pick(row, Object.keys(config.mapping.regionCd)));
     return gu;
 }
 

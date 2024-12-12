@@ -7,10 +7,10 @@ import oracleRegioncd from "./sggcd/oracleRegioncd.js";
 let gu = sggcd.getRegionCdFromJson();
 console.log(gu);
 
-const arr = objectToArray(gu, config.regionCdMapping);
+const arr = objectToArray(gu, Object.keys(config.mapping.regionCd));
 console.log(arr);
 
-oracleRegioncd.runApp(config.regionCdMapping, arr);
+oracleRegioncd.runApp('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]), arr);
 
 
 // 단독/다가구

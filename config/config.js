@@ -14,15 +14,24 @@ const mapping = {
         'excluUseAr': "EXCLU_USE_AR",  // 배열의 2번째에 EXCLU_USE_AR 값
         'floor': "FLOOR",              // 배열의 3번째에 FLOOR 값
         'buildYear': "BUILD_YEAR",     // 배열의 4번째에 BUILD_YEAR 값
+        // API에서 deposit 숫자를 3자리 단위마다 쉼표(,)로 구분하기 때문에 DB에 넣기 전에 제거해야 함.
         'deposit': "DEPOSIT",          // 배열의 5번째에 DEPOSIT 값
         'monthlyRent': "MONTHLY_RENT", // 배열의 6번째에 MONTHLY_RENT 값
+        // API에서는 년월일 따로 주기 때문에 makeDealDate를 직접 만들어줘야 함.
         'makeDealDate': "DEALDATE",    // 배열의 7번째에 DEALDATE 값
         'jibun': "JIBUN",              // 배열의 8번째에 JIBUN 값
         'offiNm': "BUILDING_NAME"      // 배열의 9번째에 BUILDING_NAME 값
     }
 }
 
+const url = {
+    regionCd: "https://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList",
+    dandok: "http://apis.data.go.kr/1613000/RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
+    yeonlip: "http://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
+    officeHotel: "https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"
+}
+
 // 프로그램에서 테이블 이름을 직접 사용할 때는 무조건 대문자로 사용
 const allowedTables = ['REGIONCD', 'BUILDING', 'OFFICE_HOTEL'];
 
-export default { mapping, allowedTables };
+export default { mapping, url, allowedTables };

@@ -33,7 +33,8 @@ async function select(table, columns) {
     checkAllowedTable(table);
 
     return await connectionHandler(async (connection) => {
-        // SELECT regioncd
+        // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
+        // TODO: 현재 매핑은 api로 가져온 데이터와 테이블 칼럼이 1:1 대응하는 경우를 대응하는 중 (API에는 ID가 없음)
         let sql = `select id, `;
         sql += columns.join(', ');
         sql += ` from ${table}`;
@@ -60,21 +61,6 @@ async function insertMany(table, columns, rows) {
         let result = await connection.executeMany(sql, rows);
         console.log(result.rowsAffected, "Rows Inserted");
         connection.commit();
-
-        // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
-        // TODO: 현재 매핑은 api로 가져온 데이터와 테이블 칼럼이 1:1 대응하는 경우를 대응하는 중 (API에는 ID가 없음)
-        // Now query the rows back (테스트용)
-        sql = `select id, `;
-        sql += columns.join(', ');
-        sql += ` from ${table}`;
-        result = await connection.execute(sql, [], { resultSet: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
-        const rs = result.resultSet; let row;
-        while ((row = await rs.getRow())) {
-            let log = `${row.ID}: `;
-            log += columns.map((col) => row[col]).join(' ');
-            console.log(log);
-        }
-        await rs.close();
     });
 }
 

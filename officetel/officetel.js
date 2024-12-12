@@ -1,44 +1,63 @@
 import request from 'request-promise';
 import convert from 'xml-js';
 import secrets from "../config/secrets.json" with { type: "json" };
+import { objectToArray, generateYearMonths } from '../util/util.js';
 import xmlUtil from "../util/xml-js.util.js";
 import oracleUtil from '../util/oracle.util.js';
 import config from '../config/config.js';
 
-// let regioncdArr = await getSggRegionCd();
-let regioncdArr = ["11170"]; // 임시 테스트용
+const regioncdArr = await getSggRegionCd();
+const yearMonthsArr = generateYearMonths(2020, 2024);
+// const regioncdArr = ["11170"]; // 임시 테스트용
+// const yearMonthsArr = ["202311"]; // 임시 테스트용
 const numOfRows = 1000;
-regioncdArr.forEach(regioncd => {
-    recursiveRequestRTMSDataSvcRHRent(regioncd, "202411", numOfRows);
-});
 
-async function recursiveRequestRTMSDataSvcRHRent(LAWD_CD, YEARMONTH, numOfRows) {
-    let pageNo = 1;
-    let totalCount;
-    do {
-        let response = await request.get(makeRTMSDataSvcRHRentUri(pageNo, numOfRows, LAWD_CD, YEARMONTH), function (error, response, body) { });
-        let header, rows;
-        {
-            let jsonbody = convert.xml2js(response, xmlUtil.options);
-            header = jsonbody.response.header;
-            // head = {
-            //     numOfRows: jsonbody.response.body.numOfRows,
-            //     pageNo: jsonbody.response.body.pageNo,
-            //     totalCount: jsonbody.response.body.totalCount
-            // }
-            rows = jsonbody.response.body.items.item;
-            totalCount = jsonbody.response.body.totalCount;
-        }
-        // console.log(rows);
-        console.log("pageNo: " + pageNo);
-        console.log("numOfRows: " + numOfRows);
-        console.log("totalCount: " + totalCount);
-        pageNo++;
-    } while ((pageNo - 1) * numOfRows < totalCount);
+const columns = Object.entries(config.mapping.officeHotel).map((row) => row[1]);
+for (let i = 0; i < yearMonthsArr.length; i++) {
+    setTimeout(() => {
+        regioncdArr.forEach(async (regioncd) => {
+            let data = await recursiveRequestRTMSDataSvcOffiRent(regioncd, yearMonthsArr[i], numOfRows);
+                // deposit, monthlyRent에 쉼표(,)가 들어가 있어서 제거해줘야 함
+                // dealYear, dealMonth, dealDay를 합쳐서 makeDealDate로 만들어주기
+                data.map((row) => {
+                    row.deposit = ("" + row.deposit).replace(/,/g, '');
+                    row.monthlyRent = ("" + row.monthlyRent).replace(/,/g, '');
+                    row.makeDealDate = yearMonthsArr[i] + ("0" + row.dealDay).slice(-2);
+                });
+                const arr = objectToArray(data, Object.keys(config.mapping.officeHotel));
+
+                oracleUtil.insertMany('OFFICE_HOTEL', columns, arr);
+        });
+    }, i * 1000);
 }
 
-function makeRTMSDataSvcRHRentUri(pageNo, numOfRows, LAWD_CD, YEARMONTH) {
-    let uri = `https://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent?serviceKey=${secrets.apikey.getRTMSDataSvcRHRent}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
+async function recursiveRequestRTMSDataSvcOffiRent(LAWD_CD, YEARMONTH, numOfRows) {
+    let pageNo = 1;
+    let totalCount;
+    let items = [];
+    do {
+        let rows;
+        {
+            const response = await request.get(makeRTMSDataSvcOffiRent(pageNo, numOfRows, LAWD_CD, YEARMONTH));
+            const jsonbody = convert.xml2js(response, xmlUtil.options);
+            try {
+                rows = jsonbody.response.body.items.item;
+                totalCount = jsonbody.response.body.totalCount;
+            } catch (err) {
+                console.log("ERROR: " + pageNo + " " + LAWD_CD + " " + YEARMONTH);
+                console.log(jsonbody);
+                console.error(err);
+                process.exit(1);
+            }
+        }
+        items.push(...rows);
+        pageNo++;
+    } while ((pageNo - 1) * numOfRows < totalCount);
+    return items;
+}
+
+function makeRTMSDataSvcOffiRent(pageNo, numOfRows, LAWD_CD, YEARMONTH) {
+    let uri = `${config.url.officeHotel}?serviceKey=${secrets.apikey.officeHotel}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
     console.log(uri);
     return {
         uri: uri,
@@ -52,7 +71,7 @@ async function getSggRegionCd() {
     // 구 단위 법정동코드 목록을 배열로 변환
     let regioncdArr = [];
     list.forEach(row => {
-        if (row.SGG_CD !== "000") // 시도 분류 제거
+        if (row.SGG_CD !== "000" && row.UMD_CD === "000") // 시도 분류 제거, 읍면동 단위 제거
             regioncdArr.push(row.SIDO_CD + row.SGG_CD);
     });
     return regioncdArr;

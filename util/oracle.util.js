@@ -29,24 +29,21 @@ async function connectionHandler(func) {
     }
 }
 
-async function getRegioncdFromDB() {
+async function select(table, columns) {
+    checkAllowedTable(table);
 
     return await connectionHandler(async (connection) => {
         // SELECT regioncd
-        let result = await connection.execute(`select id, sido_cd||sgg_cd region_cd, locatadd_nm from regioncd`, [], { resultSet: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
+        let sql = `select id, `;
+        sql += columns.join(', ');
+        sql += ` from ${table}`;
+        let result = await connection.execute(sql, [], { resultSet: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
         const rs = result.resultSet; let row, rows = [];
         while ((row = await rs.getRow())) {
             rows.push(row);
         }
         await rs.close();
         return rows;
-    });
-}
-
-async function createRegionCdTable() {
-    await connectionHandler(async (connection) => {
-        await connection.execute(`begin execute immediate 'drop table regioncd'; exception when others then if sqlcode <> -942 then raise; end if; end;`);
-        await connection.execute(`create table regioncd (id number generated always as identity, sido_cd VARCHAR2(2), sgg_cd VARCHAR2(3), locatadd_nm VARCHAR2(100), primary key (id))`);
     });
 }
 
@@ -81,4 +78,11 @@ async function insertMany(table, columns, rows) {
     });
 }
 
-export default { insertMany, createRegionCdTable, getRegioncdFromDB };
+async function createRegionCdTable() {
+    await connectionHandler(async (connection) => {
+        await connection.execute(`begin execute immediate 'drop table regioncd'; exception when others then if sqlcode <> -942 then raise; end if; end;`);
+        await connection.execute(`create table regioncd (id number generated always as identity, sido_cd VARCHAR2(2), sgg_cd VARCHAR2(3), locatadd_nm VARCHAR2(100), primary key (id))`);
+    });
+}
+
+export default { select, insertMany, createRegionCdTable };

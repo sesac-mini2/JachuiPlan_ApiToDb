@@ -21,6 +21,7 @@ const mapping = {
     }
 }
 
+// 프로그램에서 테이블 이름을 직접 사용할 때는 무조건 대문자로 사용
 const allowedTables = ['REGIONCD', 'BUILDING', 'OFFICE_HOTEL'];
 
 export default { mapping, allowedTables };

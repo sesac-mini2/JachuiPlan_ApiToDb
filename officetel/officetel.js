@@ -3,8 +3,9 @@ import convert from 'xml-js';
 import secrets from "../config/secrets.json" with { type: "json" };
 import xmlUtil from "../util/xml-js.util.js";
 import oracleUtil from '../util/oracle.util.js';
+import config from '../config/config.js';
 
-// let regioncdArr = await getRegioncd();
+// let regioncdArr = await getSggRegionCd();
 let regioncdArr = ["11170"]; // 임시 테스트용
 const numOfRows = 1000;
 regioncdArr.forEach(regioncd => {
@@ -45,15 +46,14 @@ function makeRTMSDataSvcRHRentUri(pageNo, numOfRows, LAWD_CD, YEARMONTH) {
 }
 
 // 시군구 단위 법정동코드 배열 반환
-async function getRegioncd() {
-    let list = await oracleUtil.getRegioncdFromDB();
+async function getSggRegionCd() {
+    let list = await oracleUtil.select('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]));
 
     // 구 단위 법정동코드 목록을 배열로 변환
     let regioncdArr = [];
     list.forEach(row => {
-        regioncdArr.push(row.REGION_CD);
+        if (row.SGG_CD !== "000") // 시도 분류 제거
+            regioncdArr.push(row.SIDO_CD + row.SGG_CD);
     });
-    // 시도 분류 제거
-    regioncdArr = regioncdArr.filter(row => row.slice(2, 5) !== "000");
     return regioncdArr;
 }

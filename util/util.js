@@ -12,7 +12,7 @@ function objectToArray(obj, mapping) {
     return Object.entries(obj).map(([key, value]) => {
         const result = [];
         for (const [index, prop] of Object.entries(mapping)) {
-            result[index] = value[prop];
+            result[index] = "" + (value[prop] || '');
         }
         return result;
     });

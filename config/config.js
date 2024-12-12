@@ -5,7 +5,8 @@ const mapping = {
     regionCd: {
         'sido_cd': "SIDO_CD",          // 배열의 0번째에 SIDO_CD 값
         'sgg_cd': "SGG_CD",            // 배열의 1번째에 SGG_CD 값
-        'locatadd_nm': "LOCATADD_NM"   // 배열의 2번째에 LOCATADD_NM 값
+        'umd_cd': "UMD_CD",            // 배열의 2번째에 UMD_CD 값
+        'locatadd_nm': "LOCATADD_NM"   // 배열의 3번째에 LOCATADD_NM 값
     },
     officeHotel: {
         'sggCd': "SGGCD",              // 배열의 0번째에 SGGCD 값

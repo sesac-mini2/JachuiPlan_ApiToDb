@@ -3,9 +3,8 @@ import { pick } from "../util/util.js";
 import config from "../config/config.js";
 
 function getRegionCdFromJson() {
-    // 시도 분류도 데이터베이스에 넣고 어플리케이션에서 시도/시군구 구분해서 사용
-    // umd_cd가 000인 경우는 시도/시군구를 의미
-    let gu = sggcd.StanReginCd.row.filter(row => row.umd_cd === "000");
+    // 시도 분류도 데이터베이스에 넣고 어플리케이션에서 시도/시군구/읍면동 구분해서 사용
+    let gu = sggcd.StanReginCd.row;
 
     console.log(sggcd.StanReginCd.row.length);
     console.log(gu.length);

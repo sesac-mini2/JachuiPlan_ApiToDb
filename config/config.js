@@ -23,6 +23,21 @@ const mapping = {
         'buildingName': "BUILDING_NAME",  // 배열의 10번째에 BUILDING_NAME 값
         'houseType': "HOUSE_TYPE"         // 배열의 11번째에 HOUSE_TYPE 값
     },
+    yeonlip: {
+        // buildingType은 dandok(단독/다가구) 1, yeonlip 2 (직접 넣어줘야 함)
+        'buildingType': "BUILDING_TYPE",  // 배열의 0번째에 BUILDING_TYPE 값
+        'sggCd': "SGGCD",                 // 배열의 1번째에 SGGCD 값
+        'umdNm': "UMDNM",                 // 배열의 2번째에 UMDNM 값
+        'excluUseAr': "TOTAL_FLOOR_AR",   // 배열의 3번째에 TOTAL_FLOOR_AR 값
+        'floor': "FLOOR",                 // 배열의 4번째에 FLOOR 값
+        'buildYear': "BUILD_YEAR",        // 배열의 5번째에 BUILD_YEAR 값
+        'deposit': "DEPOSIT",             // 배열의 6번째에 DEPOSIT 값
+        'monthlyRent': "MONTHLY_RENT",    // 배열의 7번째에 MONTHLY_RENT 값
+        'makeDealDate': "DEALDATE",       // 배열의 8번째에 DEALDATE 값
+        'jibun': "JIBUN",                 // 배열의 9번째에 JIBUN 값
+        'mhouseNm': "BUILDING_NAME",      // 배열의 10번째에 BUILDING_NAME 값
+        'houseType': "HOUSE_TYPE"         // 배열의 11번째에 HOUSE_TYPE 값
+    },
     officeHotel: {
         'sggCd': "SGGCD",              // 배열의 0번째에 SGGCD 값
         'umdNm': "UMDNM",              // 배열의 1번째에 UMDNM 값

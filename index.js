@@ -11,7 +11,6 @@ const endYearMonth = process.argv[3] || "202411";
 
 // 오라클 DB에 API로 가져온 법정동코드, 행정구역 한국어 이름 데이터 삽입
 let gu = regionCd.getRegionCdFromJson();
-console.log(gu);
 
 const arr = objectToArray(gu, Object.keys(config.mapping.regionCd));
 console.log(arr);

@@ -4,9 +4,10 @@ import secrets from "../config/secrets.json" with { type: "json" };
 import { objectToArray, generateYearMonths } from '../util/util.js';
 import xmlUtil from "../util/xml-js.util.js";
 import oracleUtil from '../util/oracle.util.js';
+import regioncd from '../regioncd/regioncd.js';
 import config from '../config/config.js';
 
-const regioncdArr = await getSggRegionCd();
+const regioncdArr = await regioncd.getRegionCdFromDb();
 const yearMonthsArr = generateYearMonths(2020, 2024);
 // const regioncdArr = ["11170"]; // 임시 테스트용
 // const yearMonthsArr = ["202311"]; // 임시 테스트용
@@ -62,17 +63,4 @@ function makeRTMSDataSvcOffiRent(pageNo, numOfRows, LAWD_CD, YEARMONTH) {
     return {
         uri: uri,
     };
-}
-
-// 시군구 단위 법정동코드 배열 반환
-async function getSggRegionCd() {
-    let list = await oracleUtil.select('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]));
-
-    // 구 단위 법정동코드 목록을 배열로 변환
-    let regioncdArr = [];
-    list.forEach(row => {
-        if (row.SGG_CD !== "000" && row.UMD_CD === "000") // 시도 분류 제거, 읍면동 단위 제거
-            regioncdArr.push(row.SIDO_CD + row.SGG_CD);
-    });
-    return regioncdArr;
 }

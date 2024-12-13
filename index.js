@@ -1,10 +1,10 @@
 import config from "./config/config.js";
 import { objectToArray } from "./util/util.js";
-import regioncd from "./regioncd/regioncd.js";
+import regionCd from "./regioncd/regioncd.js";
 import oracleUtil from './util/oracle.util.js';
 
 // 오라클 DB에 API로 가져온 법정동코드, 행정구역 한국어 이름 데이터 삽입
-let gu = regioncd.getRegionCdFromJson();
+let gu = regionCd.getRegionCdFromJson();
 console.log(gu);
 
 const arr = objectToArray(gu, Object.keys(config.mapping.regionCd));

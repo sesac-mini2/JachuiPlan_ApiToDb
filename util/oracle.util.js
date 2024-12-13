@@ -66,8 +66,8 @@ async function insertMany(table, columns, rows) {
 
 async function createRegionCdTable() {
     await connectionHandler(async (connection) => {
-        await connection.execute(`begin execute immediate 'drop table regioncd'; exception when others then if sqlcode <> -942 then raise; end if; end;`);
-        await connection.execute(`create table regioncd (id number generated always as identity, sido_cd VARCHAR2(2), sgg_cd VARCHAR2(3), umd_cd VARCHAR2(3), locatadd_nm VARCHAR2(100), primary key (id))`);
+        await connection.execute(`begin execute immediate 'drop table REGIONCD'; exception when others then if sqlcode <> -942 then raise; end if; end;`);
+        await connection.execute(`create table REGIONCD (id number generated always as identity, sido_cd VARCHAR2(2), sgg_cd VARCHAR2(3), umd_cd VARCHAR2(3), locatadd_nm VARCHAR2(100), primary key (id))`);
     });
 }
 

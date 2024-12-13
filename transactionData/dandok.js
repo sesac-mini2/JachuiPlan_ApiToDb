@@ -1,25 +1,16 @@
-import { sleep, objectToArray, generateYearMonths } from '../util/util.js';
-import requestUtil from '../util/request.util.js';
-import oracleUtil from '../util/oracle.util.js';
-import regioncd from '../regioncd/regioncd.js';
-import config from '../config/config.js';
+import { generateYearMonths } from '../util/util.js';
+import regionCd from '../regioncd/regioncd.js';
+import converter from './converter.js';
 
-const regioncdArr = await regioncd.getRegionCdFromDb();
-const yearMonthsArr = generateYearMonths(2020, 2024);
-// const regioncdArr = ["11170"]; // 임시 테스트용
-// const yearMonthsArr = ["202311"]; // 임시 테스트용
+const name = 'dandok';
+const tableName = 'BUILDING';
 
-const columns = Object.entries(config.mapping.dandok).map((row) => row[1]);
-for (let i = 0; i < yearMonthsArr.length; i++) {
-    regioncdArr.forEach(async (regioncd) => {
-        let data = await requestUtil.recursiveRequestRTMSDataSvc('dandok', regioncd, yearMonthsArr[i]);
-            data.map(convertDandok);
-            const arr = objectToArray(data, Object.keys(config.mapping.dandok));
+// const regionCdArr = await regionCd.getRegionCdFromDb();
+// const yearMonthsArr = generateYearMonths(2020, 2024);
+const regionCdArr = ["11170"]; // 임시 테스트용
+const yearMonthsArr = ["202311"]; // 임시 테스트용
 
-            oracleUtil.insertMany('BUILDING', columns, arr);
-    });
-    await sleep(1000);
-}
+converter.APItoDB(name, tableName, convertDandok, regionCdArr, yearMonthsArr);
 
 // API 데이터를 가공하여 DB에 알맞은 데이터로 변환
 function convertDandok(row) {

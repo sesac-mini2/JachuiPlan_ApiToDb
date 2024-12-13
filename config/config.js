@@ -54,14 +54,26 @@ const mapping = {
     }
 }
 
-const url = {
-    regionCd: "https://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList",
-    dandok: "http://apis.data.go.kr/1613000/RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
-    yeonlip: "http://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
-    officeHotel: "https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"
+const apiInfo = {
+    regionCd: {
+        url: "https://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList",
+        limitPerDay: 10000
+    },
+    dandok: {
+        url: "http://apis.data.go.kr/1613000/RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
+        limitPerDay: 1000
+    },
+    yeonlip: {
+        url: "http://apis.data.go.kr/1613000/RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
+        limitPerDay: 10000
+    },
+    officeHotel: {
+        url: "https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
+        limitPerDay: 10000
+    }
 }
 
 // 프로그램에서 테이블 이름을 직접 사용할 때는 무조건 대문자로 사용
 const allowedTables = ['REGIONCD', 'BUILDING', 'OFFICE_HOTEL'];
 
-export default { mapping, url, allowedTables };
+export default { mapping, apiInfo, allowedTables };

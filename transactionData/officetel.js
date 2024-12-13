@@ -1,25 +1,16 @@
-import { sleep, objectToArray, generateYearMonths } from '../util/util.js';
-import requestUtil from '../util/request.util.js';
-import oracleUtil from '../util/oracle.util.js';
-import regioncd from '../regioncd/regioncd.js';
-import config from '../config/config.js';
+import { generateYearMonths } from '../util/util.js';
+import regionCd from '../regioncd/regioncd.js';
+import converter from './converter.js';
 
-const regioncdArr = await regioncd.getRegionCdFromDb();
-const yearMonthsArr = generateYearMonths(2020, 2024);
-// const regioncdArr = ["11170"]; // 임시 테스트용
-// const yearMonthsArr = ["202311"]; // 임시 테스트용
+const name = 'officeHotel';
+const tableName = 'OFFICE_HOTEL';
 
-const columns = Object.entries(config.mapping.officeHotel).map((row) => row[1]);
-for (let i = 0; i < yearMonthsArr.length; i++) {
-    regioncdArr.forEach(async (regioncd) => {
-        let data = await requestUtil.recursiveRequestRTMSDataSvc('officeHotel', regioncd, yearMonthsArr[i]);
-            data.map(convertOfficeHotel);
-            const arr = objectToArray(data, Object.keys(config.mapping.officeHotel));
+// const regionCdArr = await regionCd.getRegionCdFromDb();
+// const yearMonthsArr = generateYearMonths(2020, 2024);
+const regionCdArr = ["11170"]; // 임시 테스트용
+const yearMonthsArr = ["202311"]; // 임시 테스트용
 
-            oracleUtil.insertMany('OFFICE_HOTEL', columns, arr);
-    });
-    await sleep(1000);
-}
+converter.APItoDB(name, tableName, convertOfficeHotel, regionCdArr, yearMonthsArr);
 
 // API 데이터를 가공하여 DB에 알맞은 데이터로 변환
 function convertOfficeHotel(row) {

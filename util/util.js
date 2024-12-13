@@ -12,6 +12,7 @@ function pick(obj, props) {
     }, {});
 }
 
+// 객체를 지정된 순서에 따라 배열로 변환 (config.mapping에 정의된 객체 속성 순서대로)
 function objectToArray(obj, mapping) {
     return Object.entries(obj).map(([key, value]) => {
         const result = [];

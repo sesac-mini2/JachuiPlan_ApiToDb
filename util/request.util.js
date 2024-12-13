@@ -32,7 +32,7 @@ async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH) {
 }
 
 function makeRTMSDataSvcUri(type, pageNo, LAWD_CD, YEARMONTH) {
-    let uri = `${config.url[type]}?serviceKey=${secrets.apikey[type]}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
+    let uri = `${config.apiInfo[type].url}?serviceKey=${secrets.apikey[type]}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
     console.log(uri);
     return {
         uri: uri,

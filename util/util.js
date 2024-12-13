@@ -1,5 +1,9 @@
 import config from '../config/config.js';
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function pick(obj, props) {
     return props.reduce((result, prop) => {
         if (obj.hasOwnProperty(prop))
@@ -12,6 +16,7 @@ function objectToArray(obj, mapping) {
     return Object.entries(obj).map(([key, value]) => {
         const result = [];
         for (const [index, prop] of Object.entries(mapping)) {
+            // String으로 형변환, undefined일 경우 빈 문자열로 변환
             result[index] = "" + (value[prop] || '');
         }
         return result;
@@ -38,4 +43,4 @@ function generateYearMonths(startYear = 2022, endYear = 2024) {
     return yearMonths;
 }
 
-export { pick, objectToArray, checkAllowedTable, generateYearMonths };
+export { sleep, pick, objectToArray, checkAllowedTable, generateYearMonths };

@@ -1,6 +1,7 @@
 import regioncdJson from "./regioncd_seoul.json" with { type: "json" };
 import { pick } from "../util/util.js";
 import config from "../config/config.js";
+import oracleUtil from "../util/oracle.util.js";
 
 function getRegionCdFromJson() {
     // 시도 분류도 데이터베이스에 넣고 어플리케이션에서 시도/시군구/읍면동 구분해서 사용

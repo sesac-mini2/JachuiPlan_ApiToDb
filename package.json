@@ -10,8 +10,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "oracledb": "^6.0",
-    "request-promise": "^4.2.6",
-    "xml-js": "^1.6.11"
+    "axios": "^1.7.9",
+    "oracledb": "^6.0"
   }
 }

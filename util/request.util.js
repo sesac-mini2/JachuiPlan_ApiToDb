@@ -1,7 +1,5 @@
-import request from 'request-promise';
-import convert from 'xml-js';
+import axios from 'axios';
 import secrets from "../config/secrets.json" with { type: "json" };
-import xmlUtil from "../util/xml-js.util.js";
 import config from '../config/config.js';
 
 const numOfRows = 1000;
@@ -13,14 +11,22 @@ async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH) {
     do {
         let rows;
         {
-            const response = await request.get(makeRTMSDataSvcUri(type, pageNo, LAWD_CD, YEARMONTH));
-            const jsonbody = convert.xml2js(response, xmlUtil.options);
+            const response = await axios.get(config.apiInfo[type].url, {
+                params: {
+                    serviceKey: secrets.apikey[type],
+                    pageNo: pageNo,
+                    numOfRows: numOfRows,
+                    LAWD_CD: LAWD_CD,
+                    DEAL_YMD: YEARMONTH
+                }
+            });
+            const data = response.data.response;
             try {
-                rows = jsonbody.response.body.items.item;
-                totalCount = jsonbody.response.body.totalCount;
+                rows = data.body.items.item;
+                totalCount = data.body.totalCount;
             } catch (err) {
                 // console.log("ERROR: " + pageNo + " " + LAWD_CD + " " + YEARMONTH);
-                console.log(jsonbody);
+                console.log(response);
                 console.error(err);
                 process.exit(1);
             }
@@ -29,14 +35,6 @@ async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH) {
         pageNo++;
     } while ((pageNo - 1) * numOfRows < totalCount);
     return items;
-}
-
-function makeRTMSDataSvcUri(type, pageNo, LAWD_CD, YEARMONTH) {
-    let uri = `${config.apiInfo[type].url}?serviceKey=${secrets.apikey[type]}&pageNo=${pageNo}&numOfRows=${numOfRows}&LAWD_CD=${LAWD_CD}&DEAL_YMD=${YEARMONTH}`;
-    console.log(uri);
-    return {
-        uri: uri,
-    };
 }
 
 export default { recursiveRequestRTMSDataSvc }

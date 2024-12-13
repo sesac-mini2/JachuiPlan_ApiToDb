@@ -15,6 +15,8 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 
             oracleUtil.insertMany(tableName, columns, arr);
         });
+
+        // 초당 API 호출 횟수를 넘지 않도록 1초 대기
         await sleep(1000);
     }
 }

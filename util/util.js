@@ -30,17 +30,32 @@ function checkAllowedTable(table) {
     }
 }
 
-function generateYearMonths(startYear = 2022, endYear = 2024) {
+function generateYearMonths(startYearMonth, endYearMonth) {
+    // 입력 검증 (길이만 검증)
+    if (startYearMonth.length !== 6 || endYearMonth.length !== 6) {
+        throw new Error('Invalid year-month format (YYYYMM)');
+    }
+    // 연도와 월로 분리
+    const startYear = parseInt(startYearMonth.slice(0, 4), 10);
+    const startMonth = parseInt(startYearMonth.slice(4), 10);
+    const endYear = parseInt(endYearMonth.slice(0, 4), 10);
+    const endMonth = parseInt(endYearMonth.slice(4), 10);
+
     const yearMonths = [];
     for (let year = startYear; year <= endYear; year++) {
         for (let month = 1; month <= 12; month++) {
-            // 월이 한 자리일 경우 앞에 0을 추가하여 두 자리로 만듭니다.
+            // 시작년월 이전 또는 마지막년월 이후의 월은 건너뜀
+            if ((year === startYear && month < startMonth) || (year === endYear && month > endMonth)) {
+                continue;
+            }
+            // 월을 두 자리 문자열로 변환
             const monthString = month < 10 ? '0' + month : month.toString();
-            // 연도와 월을 결합하여 "YYYYMM" 형식의 문자열을 생성합니다.
+            // "YYYYMM" 형식의 문자열 생성
             const yearMonth = `${year}${monthString}`;
             yearMonths.push(yearMonth);
         }
     }
+
     return yearMonths;
 }
 

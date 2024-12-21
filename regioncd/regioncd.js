@@ -1,16 +1,19 @@
-import regioncdJson from "./regioncd_seoul.json" with { type: "json" };
+import fs from 'fs';
 import { pick } from "../util/util.js";
 import config from "../config/config.js";
 import oracleUtil from "../util/oracle.util.js";
 
 function getRegionCdFromJson() {
-    // 시도 분류도 데이터베이스에 넣고 어플리케이션에서 시도/시군구/읍면동 구분해서 사용
-    let gu = regioncdJson.StanReginCd.row;
+    const regioncdJson = JSON.parse(fs.readFileSync('./regioncd/regioncd_seoul.json', 'utf8')).StanReginCd.row;
+    const districtLocationJson = JSON.parse(fs.readFileSync('./regioncd/district_location_filtered.json', 'utf8'));
 
-    console.log(regioncdJson.StanReginCd.row.length);
-    console.log(gu.length);
-    gu = gu.map(row => pick(row, Object.keys(config.mapping.regionCd)));
-    return gu;
+    console.log(regioncdJson.length);
+    regioncdJson.map(row => {
+        row.latitude = districtLocationJson[row.locatadd_nm].위도;
+        row.longitude = districtLocationJson[row.locatadd_nm].경도;
+        pick(row, Object.keys(config.mapping.regionCd));
+    });
+    return regioncdJson;
 }
 
 // 시군구 단위 법정동코드 배열 반환

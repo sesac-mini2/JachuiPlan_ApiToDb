@@ -5,7 +5,7 @@ function officeHotel(row) {
     // dealYear, dealMonth, dealDay를 합쳐서 makeDealDate로 만들어주기
     row.deposit = ("" + row.deposit).replace(/,/g, '');
     row.monthlyRent = ("" + row.monthlyRent).replace(/,/g, '');
-    row.makeDealDate = row.dealYear + ("0" + row.dealMonth).slice(-2) + ("0" + row.dealDay).slice(-2);
+    row.makeDealDate = new Date(`${row.dealYear}-${("0" + row.dealMonth).slice(-2)}-${("0" + row.dealDay).slice(-2)}`);
 }
 
 function dandok(row) {
@@ -14,7 +14,7 @@ function dandok(row) {
     row.buildingType = '1'; // 단독/다가구 타입 = 1
     row.deposit = ("" + row.deposit).replace(/,/g, '');
     row.monthlyRent = ("" + row.monthlyRent).replace(/,/g, '');
-    row.makeDealDate = row.dealYear + ("0" + row.dealMonth).slice(-2) + ("0" + row.dealDay).slice(-2);
+    row.makeDealDate = new Date(`${row.dealYear}-${("0" + row.dealMonth).slice(-2)}-${("0" + row.dealDay).slice(-2)}`);
 }
 
 function yeonlip(row) {
@@ -23,7 +23,7 @@ function yeonlip(row) {
     row.buildingType = '2'; // 연립다세대 타입 = 2
     row.deposit = ("" + row.deposit).replace(/,/g, '');
     row.monthlyRent = ("" + row.monthlyRent).replace(/,/g, '');
-    row.makeDealDate = row.dealYear + ("0" + row.dealMonth).slice(-2) + ("0" + row.dealDay).slice(-2);
+    row.makeDealDate = new Date(`${row.dealYear}-${("0" + row.dealMonth).slice(-2)}-${("0" + row.dealDay).slice(-2)}`);
 }
 
 export default { officeHotel, dandok, yeonlip };

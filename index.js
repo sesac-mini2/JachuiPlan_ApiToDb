@@ -1,5 +1,5 @@
 import config from "./config/config.js";
-import { objectToArray, generateYearMonths } from "./util/util.js";
+import { objectToArrayWithMapper, generateYearMonths } from "./util/util.js";
 import regionCd from "./regioncd/regioncd.js";
 import converter from "./transactionData/converter.js";
 import convertFunctions from "./transactionData/convertFunctions.js";
@@ -12,10 +12,10 @@ const endYearMonth = process.argv[3] || "202411";
 // 오라클 DB에 API로 가져온 법정동코드, 행정구역 한국어 이름 데이터 삽입
 let gu = regionCd.getRegionCdFromJson();
 
-const arr = objectToArray(gu, Object.keys(config.mapping.regionCd));
+const arr = objectToArrayWithMapper(gu, config.mapping.regionCd);
 console.log(arr);
 
-await oracleUtil.createRegionCdTable();
+await oracleUtil.deleteRegionCdTableItems();
 await oracleUtil.insertMany('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]), arr);
 
 

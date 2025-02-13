@@ -36,7 +36,7 @@ async function select(table, columns) {
         // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
         // TODO: 현재 매핑은 api로 가져온 데이터와 테이블 칼럼이 1:1 대응하는 경우를 대응하는 중 (API에는 ID가 없음)
         let sql = `select id, `;
-        sql += columns.join(', ');
+        sql += columns.map(col => col.column_name).join(', ');
         sql += ` from ${table}`;
         let result = await connection.execute(sql, [], { resultSet: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
         const rs = result.resultSet; let row, rows = [];
@@ -54,11 +54,25 @@ async function insertMany(table, columns, rows) {
     await connectionHandler(async (connection) => {
         // Insert some data
         let sql = `insert into ${table} (`;
-        sql += columns.join(', ');
+        sql += columns.map(col => col.column_name).join(', ');
         sql += ') values (';
         sql += columns.map((_, idx) => `:${idx + 1}`).join(', ');
         sql += ')';
-        let result = await connection.executeMany(sql, rows);
+
+        // 바인드 변수 옵션 수정
+        const options = {
+            bindDefs: columns.map(col => (col.type === "STRING" ?
+                    {
+                        type: oracledb[col.type],
+                        maxSize:  col.maxSize // STRING 타입에 대해 maxSize 지정
+                    }
+                    :
+                    {
+                        type: oracledb[col.type]
+                    }
+            ))
+        };
+        let result = await connection.executeMany(sql, rows, options);
         console.log(result.rowsAffected, "Rows Inserted");
         connection.commit();
     });
@@ -71,4 +85,11 @@ async function createRegionCdTable() {
     });
 }
 
-export default { select, insertMany, createRegionCdTable };
+async function deleteRegionCdTableItems() {
+    await connectionHandler(async (connection) => {
+        await connection.execute(`DELETE FROM REGIONCD WHERE 1=1`);
+        connection.commit();
+    });
+}
+
+export default { select, insertMany, createRegionCdTable, deleteRegionCdTableItems };

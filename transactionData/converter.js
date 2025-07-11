@@ -9,8 +9,7 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
     const columns = Object.entries(config.mapping[type]).map((row) => row[1]);
     for (let i = 0; i < yearMonthsArr.length; i++) {
         regionCdArr.forEach(async (regionCd) => {
-            let data = await requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonthsArr[i]);
-            data.map(convertFunc);
+            let data = await requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonthsArr[i]).map(convertFunc);
             const arr = objectToArrayWithMapper(data, config.mapping[type]);
 
             oracleUtil.insertMany(tableName, columns, arr);

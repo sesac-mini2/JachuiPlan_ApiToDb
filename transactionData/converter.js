@@ -3,15 +3,39 @@ import requestUtil from '../util/request.util.js';
 import oracleUtil from '../util/oracle.util.js';
 import config from '../config/config.js';
 
+// 데이터 변환 담당
+const transformData = (rawData, convertFunc, mapping) => {
+    const convertedData = rawData.map(convertFunc);
+    return objectToArrayWithMapper(convertedData, mapping);
+};
+
+// 사이드 이펙트를 포함한 메인 함수
 async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr) {
     if (config.apiInfo[type].limitPerDay < regionCdArr.length * yearMonthsArr.length)
         throw new Error("이대로 실행하면 API 호출 횟수 무조건 초과");
-    const columns = Object.entries(config.mapping[type]).map((row) => row[1]);
-    for (let i = 0; i < yearMonthsArr.length; i++) {
-        regionCdArr.forEach(async (regionCd) => {
-            let data = await requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonthsArr[i]).map(convertFunc);
-            const arr = objectToArrayWithMapper(data, config.mapping[type]);
 
+    const columns = Object.entries(config.mapping[type]).map((row) => row[1]);
+    const mapping = config.mapping[type];
+
+    for (const yearMonth of yearMonthsArr) {
+        // Extract
+        // API 요청을 병렬로 실행
+        const dataPromises = regionCdArr.map(regionCd =>
+            requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonth)
+        );
+
+        // 모든 API 요청이 완료될 때까지 대기
+        const allRawData = await Promise.all(dataPromises);
+
+        // Transform
+        // 데이터 변환
+        const allTransformedData = allRawData.map(rawData =>
+            transformData(rawData, convertFunc, mapping)
+        );
+
+        // Load
+        // DB 삽입 실행
+        allTransformedData.forEach(arr => {
             oracleUtil.insertMany(tableName, columns, arr);
         });
 

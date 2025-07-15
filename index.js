@@ -4,6 +4,7 @@ import regionCd from "./regioncd/regioncd.js";
 import converter from "./transactionData/converter.js";
 import convertFunctions from "./transactionData/convertFunctions.js";
 import oracleUtil from './util/oracle.util.js';
+import validator from './transactionData/validator.js';
 
 // node index.js [startYearMonth] [endYearMonth]
 const startYearMonth = process.argv[2] || "202411";
@@ -22,6 +23,12 @@ await oracleUtil.insertMany('REGIONCD', Object.entries(config.mapping.regionCd).
 const regionCdArr = await regionCd.getRegionCdFromDb();
 // const regionCdArr = ["11170"]; // 임시 테스트용
 const yearMonthsArr = generateYearMonths(startYearMonth, endYearMonth);
+
+// API 호출 전 검증
+
+validator.validateAll('dandok', regionCdArr, yearMonthsArr);
+validator.validateAll('yeonlip', regionCdArr, yearMonthsArr);
+validator.validateAll('officeHotel', regionCdArr, yearMonthsArr);
 
 // Q: 함수의 결과값을 받아오지도 않고 결과에 영향을 받는 코드도 없는데 왜 converter.APItoDB에 await을 걸었냐?
 // A: 초당 API 호출 횟수에 제한을 두기 위해 함수 내부에 반복 중에 1초 대기하는 코드가 들어가 있음.

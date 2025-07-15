@@ -6,11 +6,6 @@ import config from '../config/config.js';
 // ==================== 메인 함수 ====================
 
 async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr) {
-    // 1. 초기 설정 및 검증
-    if (config.apiInfo[type].limitPerDay < regionCdArr.length * yearMonthsArr.length) {
-        throw new Error("이대로 실행하면 API 호출 횟수 무조건 초과");
-    }
-
     // 공통 컨텍스트 객체 생성
     const context = {
         type,                    // API 타입
@@ -24,22 +19,22 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
     const allFailedRequests = [];
     const allSuccessfulData = [];
 
-    // 2. 연월별 초기 처리
+    // 1. 연월별 초기 처리
     for (const yearMonth of yearMonthsArr) {
         const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(context.type, regionCdArr, yearMonth);
 
-        // 3. 성공한 데이터 즉시 처리
+        // 2. 성공한 데이터 즉시 처리
         processSuccessfulData(succeededRequests, partialRequests, context, allSuccessfulData);
 
-        // 4. 실패한 요청들 수집
+        // 3. 실패한 요청들 수집
         const partialRetryRequests = createPartialRetryRequests(partialRequests);
         allFailedRequests.push(...failedRequests, ...partialRetryRequests);
     }
 
-    // 5. 실패한 요청들 일괄 재시도
+    // 4. 실패한 요청들 일괄 재시도
     await processFailedRequests(context, allFailedRequests, allSuccessfulData);
 
-    // 6. 처리 완료 로그
+    // 5. 처리 완료 로그
     console.log(`\n=== 전체 처리 완료 ===`);
     console.log(`총 ${allSuccessfulData.length}개의 데이터셋이 성공적으로 처리되었습니다.`);
 }

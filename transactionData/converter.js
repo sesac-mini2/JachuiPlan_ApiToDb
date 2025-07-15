@@ -6,9 +6,6 @@ import config from '../config/config.js';
 // ==================== 메인 함수 ====================
 
 async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr) {
-    if (config.apiInfo[type].limitPerDay < regionCdArr.length * yearMonthsArr.length)
-        throw new Error("이대로 실행하면 API 호출 횟수 무조건 초과");
-
     // 공통 컨텍스트 객체 생성
     const context = {
         type,                    // API 타입

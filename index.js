@@ -1,6 +1,7 @@
 import config from "./config/config.js";
 import { objectToArrayWithMapper, generateYearMonths } from "./util/util.js";
 import regionCd from "./regioncd/regioncd.js";
+import validator from "./transactionData/validator.js";
 import converter from "./transactionData/converter.js";
 import convertFunctions from "./transactionData/convertFunctions.js";
 import oracleUtil from './util/oracle.util.js';
@@ -18,6 +19,11 @@ console.log(arr);
 await oracleUtil.deleteRegionCdTableItems();
 await oracleUtil.insertMany('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]), arr);
 
+// API 호출 전 검증
+
+validator.validateAll('dandok', regionCdArr, yearMonthsArr);
+validator.validateAll('yeonlip', regionCdArr, yearMonthsArr);
+validator.validateAll('officeHotel', regionCdArr, yearMonthsArr);
 
 const regionCdArr = await regionCd.getRegionCdFromDb();
 // const regionCdArr = ["11170"]; // 임시 테스트용

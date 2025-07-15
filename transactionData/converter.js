@@ -19,26 +19,35 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
     };
 
     for (const yearMonth of yearMonthsArr) {
-        // Extract
+        console.log(`\n=== ${yearMonth} 처리 시작 ===`);
+
         // API 요청을 병렬로 실행
         const dataPromises = regionCdArr.map(regionCd =>
             requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonth)
+                .then(data => processApiResponse(regionCd, yearMonth, data))
+                .catch(error => processApiError(regionCd, yearMonth, error))
         );
 
-        // 모든 API 요청이 완료될 때까지 대기
-        const allRawData = await Promise.all(dataPromises);
+        const allResults = await Promise.all(dataPromises);
 
-        // Transform
-        // 데이터 변환
-        const allTransformedData = allRawData.map(rawData =>
-            transformData(rawData, context)
-        );
+        // 성공한 요청들과 실패한 요청들, 부분 성공 요청들 분리
+        const succeededRequests = allResults.filter(result => result.status === 'fulfilled');
+        const partialRequests = allResults.filter(result => result.status === 'partial');
+        const failedRequests = allResults.filter(result => result.status === 'rejected');
 
-        // Load
-        // DB 삽입 실행
-        allTransformedData.forEach(arr => {
-            oracleUtil.insertMany(context.tableName, context.columns, arr);
-        });
+        console.log(`초기 요청 결과: ${succeededRequests.length}개 성공, ${partialRequests.length}개 부분 성공, ${failedRequests.length}개 실패`);
+
+        // 성공한 데이터 처리
+        const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
+        if (allSuccessfulRequests.length > 0) {
+            const rawData = allSuccessfulRequests.map(result => result.value);
+            const allTransformedData = rawData.map(data => transformData(data, context));
+
+            // DB 삽입 실행
+            allTransformedData.forEach(arr => {
+                oracleUtil.insertMany(context.tableName, context.columns, arr);
+            });
+        }
 
         await sleep(1000);
     }
@@ -50,6 +59,27 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 const transformData = (rawData, context) => {
     const convertedData = rawData.map(context.convertFunc);
     return objectToArrayWithMapper(convertedData, context.mapping);
+};
+
+// 에러 처리 및 상태 분류
+const processApiResponse = (regionCd, yearMonth, data) => {
+    return { status: 'fulfilled', value: data, regionCd, yearMonth };
+};
+
+const processApiError = (regionCd, yearMonth, error) => {
+    // 부분 데이터가 있는 경우 처리
+    if (error.partialData && error.partialData.collectedItems.length > 0) {
+        console.warn(`부분 데이터 수집됨 - ${regionCd} ${yearMonth}: ${error.partialData.collectedItems.length}개 항목 (페이지 ${error.partialData.lastSuccessfulPage}까지)`);
+        return {
+            status: 'partial',
+            value: error.partialData.collectedItems,
+            regionCd,
+            yearMonth,
+            error: error,
+            partialData: error.partialData
+        };
+    }
+    return { status: 'rejected', reason: error, regionCd, yearMonth };
 };
 
 export default { APItoDB };

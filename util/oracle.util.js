@@ -47,29 +47,35 @@ async function select(table, columns) {
 
 async function insertMany(table, columns, rows) {
     await connectionHandler(async (connection) => {
-        // Insert some data
-        let sql = `insert into ${table} (`;
-        sql += columns.map(col => col.column_name).join(', ');
-        sql += ') values (';
-        sql += columns.map((_, idx) => `:${idx + 1}`).join(', ');
-        sql += ')';
+        try {
+            // Insert some data
+            let sql = `insert into ${table} (`;
+            sql += columns.map(col => col.column_name).join(', ');
+            sql += ') values (';
+            sql += columns.map((_, idx) => `:${idx + 1}`).join(', ');
+            sql += ')';
 
-        // 바인드 변수 옵션 수정
-        const options = {
-            bindDefs: columns.map(col => (col.type === "STRING" ?
-                    {
-                        type: oracledb[col.type],
-                        maxSize:  col.maxSize // STRING 타입에 대해 maxSize 지정
-                    }
-                    :
-                    {
-                        type: oracledb[col.type]
-                    }
-            ))
-        };
-        let result = await connection.executeMany(sql, rows, options);
-        console.log(result.rowsAffected, "Rows Inserted");
-        connection.commit();
+            // 바인드 변수 옵션 수정
+            const options = {
+                bindDefs: columns.map(col => (col.type === "STRING" ?
+                        {
+                            type: oracledb[col.type],
+                            maxSize:  col.maxSize // STRING 타입에 대해 maxSize 지정
+                        }
+                        :
+                        {
+                            type: oracledb[col.type]
+                        }
+                ))
+            };
+            let result = await connection.executeMany(sql, rows, options);
+            console.log(result.rowsAffected, "Rows Inserted");
+            await connection.commit();
+        } catch (error) {
+            console.error(`DB 삽입 에러 (${table}):`, error.message);
+            await connection.rollback();
+            throw error; // 에러를 다시 던져서 호출자가 처리하도록 함
+        }
     });
 }
 

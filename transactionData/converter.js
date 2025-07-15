@@ -17,14 +17,14 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 
     // 실행 상태 데이터
     const allFailedRequests = [];
-    const allSuccessfulData = [];
+    let successfulDataCount = 0;
 
     // 1. 연월별 초기 처리
     for (const yearMonth of yearMonthsArr) {
         const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(context.type, regionCdArr, yearMonth);
 
         // 2. 성공한 데이터 즉시 처리
-        processSuccessfulData(succeededRequests, partialRequests, context, allSuccessfulData);
+        successfulDataCount += processSuccessfulData(succeededRequests, partialRequests, context);
 
         // 3. 실패한 요청들 수집
         const partialRetryRequests = createPartialRetryRequests(partialRequests);
@@ -32,11 +32,11 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
     }
 
     // 4. 실패한 요청들 일괄 재시도
-    await processFailedRequests(context, allFailedRequests, allSuccessfulData);
+    successfulDataCount += await processFailedRequests(context, allFailedRequests);
 
     // 5. 처리 완료 로그
     console.log(`\n=== 전체 처리 완료 ===`);
-    console.log(`총 ${allSuccessfulData.length}개의 데이터셋이 성공적으로 처리되었습니다.`);
+    console.log(`총 ${successfulDataCount}개의 데이터셋이 성공적으로 처리되었습니다.`);
 }
 
 // ==================== 헬퍼 함수들 ====================
@@ -92,7 +92,7 @@ const processYearMonth = async (type, regionCdArr, yearMonth) => {
 };
 
 // 성공한 데이터 즉시 처리
-const processSuccessfulData = (succeededRequests, partialRequests, context, allSuccessfulData) => {
+const processSuccessfulData = (succeededRequests, partialRequests, context) => {
     const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
     if (allSuccessfulRequests.length > 0) {
         const rawData = allSuccessfulRequests.map(result => result.value);
@@ -103,8 +103,9 @@ const processSuccessfulData = (succeededRequests, partialRequests, context, allS
             oracleUtil.insertMany(context.tableName, context.columns, arr);
         });
 
-        allSuccessfulData.push(...transformedData);
+        return transformedData.length;
     }
+    return 0;
 };
 
 // 부분 성공 요청들의 재시도 정보 생성
@@ -119,11 +120,13 @@ const createPartialRetryRequests = (partialRequests) => {
 };
 
 // 실패한 요청들 일괄 재시도 처리
-const processFailedRequests = async (context, allFailedRequests, allSuccessfulData) => {
-    if (allFailedRequests.length === 0) return;
+const processFailedRequests = async (context, allFailedRequests) => {
+    if (allFailedRequests.length === 0) return 0;
 
     console.log(`\n=== 실패한 요청들 일괄 재시도 시작 ===`);
     console.log(`총 ${allFailedRequests.length}개의 실패한 요청들을 재시도합니다.`);
+
+    let successfulDataCount = 0;
 
     // 실패한 요청들을 작은 배치로 나누어 처리 (API 제한 고려)
     const batchSize = 100;
@@ -146,7 +149,7 @@ const processFailedRequests = async (context, allFailedRequests, allSuccessfulDa
                 oracleUtil.insertMany(context.tableName, context.columns, arr);
             });
 
-            allSuccessfulData.push(...transformedData);
+            successfulDataCount += transformedData.length;
         }
 
         // 최종 실패한 요청들 로그
@@ -160,6 +163,8 @@ const processFailedRequests = async (context, allFailedRequests, allSuccessfulDa
         // 배치 간 대기
         await sleep(1000);
     }
+
+    return successfulDataCount;
 };
 
 // 실패한 요청들을 재시도하는 함수

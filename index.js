@@ -35,10 +35,13 @@ validator.validateAll('officeHotel', regionCdArr, yearMonthsArr);
 //    await을 걸어야 1초를 기다림. 없으면 OpenAPI에서 초당 호출 횟수를 초과하는 에러가 발생할 가능성이 높음.
 
 // 단독/다가구
+console.log('\n=== 단독/다가구 API 요청 시작 ===');
 await converter.APItoDB('dandok', 'BUILDING', convertFunctions.dandok, regionCdArr, yearMonthsArr);
 
 // 연립다세대
+console.log('\n=== 연립다세대 API 요청 시작 ===');
 await converter.APItoDB('yeonlip', 'BUILDING', convertFunctions.yeonlip, regionCdArr, yearMonthsArr);
 
 // 오피스텔
+console.log('\n=== 오피스텔 API 요청 시작 ===');
 await converter.APItoDB('officeHotel', 'OFFICE_HOTEL', convertFunctions.officeHotel, regionCdArr, yearMonthsArr);

@@ -1,25 +1,118 @@
-## 프로그램 실행하는 법
-1. [node.js](https://nodejs.org/ko)를 다운로드 받고 설치한다. 개발자가 테스트한 환경은 `v22.12.0`(LTS) 버전이다. 다른 버전이라도 왠만하면 작동할 것이다.
-1. 아래 **`secrets.json` 파일 만들기** 내용을 반드시 읽고, 데이터베이스 접속 정보와 OpenAPI 키 정보를 입력한다.
-1. 터미널/CMD에서 `npm install`을 실행한다.
-1. DB가 올바르게 준비됐다면, 터미널/CMD에서 `node index.js [시작년월(YYYYMM)] [종료년월(YYYYMM)]`을 실행한다.
-    * 어떤 내용이 DB에 입력되는지 알고 싶다면 `/config/config.js` 파일의 `mapping`을 참고해보세요. 이해하기 쉽게 만들지는 못했지만요.
-1. 이제 프로그램이 알아서 API에서 제공하는 데이터를 읽어들여 DB 테이블에 입력해준다.
+# JachuiPlan API to Database
 
-## `secrets.json` 파일 만들기
+JachuiPlan 프로젝트의 데이터 수집 도구로, 공공데이터포털 API에서 부동산 실거래 데이터를 가져와 Oracle 데이터베이스에 저장하는 Node.js 애플리케이션입니다.
 
-1. [`/config`](/config/) 디렉토리에 있는 `secrets-example.json` 파일을 복사해서 같은 디렉토리에 `secrets.json` 파일을 만든다.
-1. `secrets.json` 파일의 내용을 채운다.
-    1. Oracle 데이터베이스 계정 정보를 입력한다.
-    1. API 키 가져오기
-        1. 법정동코드 (regionCd): [API 키 신청 링크](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15077871)
-        1. 단독/다가구 (dandok): [API 키 신청 링크](https://www.data.go.kr/data/15126472/openapi.do)
-        1. 연립 다세대 (yeonlip): [API 키 신청 링크](https://www.data.go.kr/data/15126473/openapi.do)
-        1. 오피스텔 (officeHotel): [API 키 신청 링크](https://www.data.go.kr/data/15126475/openapi.do)
+## 📋 개요
 
-## `index.js` 실행시 DB 관련 안내
+이 프로그램은 다음과 같은 데이터를 수집하여 데이터베이스에 저장합니다:
+- **법정동코드**: 행정구역 정보 및 위치 데이터 (저장소 내 JSON 파일 사용)
+- **단독/다가구**: 단독주택 및 다가구주택 실거래 데이터 (API 호출)
+- **연립다세대**: 연립주택 및 다세대주택 실거래 데이터 (API 호출)
+- **오피스텔**: 오피스텔 실거래 데이터 (API 호출)
 
-직접 테이블을 작성하기 귀찮다면, [JachuiPlan 프로젝트](https://github.com/Jaehyuk-Lee/JachuiPlan)의 Spring boot 서버를 한 번 실행해주면 JPA가 알아서 테이블을 생성해준다.
+## 🛠️ 시스템 요구사항
 
-1. 기존 `REGIONCD` 테이블은 모든 내용을 DELETE하고 새로 INSERT된다.
-1. `단독/다가구`, `연립다세대`, `오피스텔` 실거래 데이터가 들어가있는 기존 내용은 삭제되지 않는다. 일간 API 호출 한도로 인해 여러번 나눠서 데이터를 입력해야 하기 때문에 기존 데이터를 남기고 며칠에 나눠 실행하는 방향으로 진행하고 있기 때문이다. 테이블이 없다면 미리 만들어줘야 한다. 테이블 구조는 ERDCloud에 작성되어 있음. [ERD Cloud 링크](https://www.erdcloud.com/d/fWGxYKSfrBLTsuG2B)
+- **Node.js**: v22.12.0 (LTS) 권장 (다른 버전도 대부분 호환)
+- **Oracle Database**: 데이터 저장을 위한 Oracle DB 접근 권한
+- **API 키**: 공공데이터포털에서 발급받은 API 키 3개 (실거래 데이터용)
+
+## 🚀 설치 및 실행
+
+### 1. 프로젝트 클론 및 의존성 설치
+```bash
+git clone <repository-url>
+cd JachuiPlan_ApiToDb
+npm install
+```
+
+### 2. 환경 설정 파일 생성
+1. `/config/secrets-example.json` 파일을 복사하여 `/config/secrets.json` 파일 생성
+2. `secrets.json` 파일에 실제 데이터베이스 정보와 API 키 입력
+
+### 3. 프로그램 실행
+```bash
+node index.js [시작년월(YYYYMM)] [종료년월(YYYYMM)]
+```
+
+**예시:**
+```bash
+# 2024년 1월부터 2024년 12월까지의 데이터 수집
+node index.js 202401 202412
+
+# 인수 없이 실행하면 기본값 (202411) 사용
+node index.js
+```
+
+## ⚙️ 환경 설정
+
+### secrets.json 파일 구성
+```json
+{
+    "oracle": {
+        "user": "your_username",
+        "password": "your_password",
+        "connectString": "your_host:port/service_name"
+    },
+    "apikey": {
+        "dandok": "your_dandok_apikey",
+        "yeonlip": "your_yeonlip_apikey",
+        "officeHotel": "your_officeHotel_apikey"
+    }
+}
+```
+
+> **참고**: 법정동코드 데이터는 API 호출 대신 저장소 내 JSON 파일(`regioncd_seoul.json`, `district_location_filtered.json`)을 사용하므로 `regionCd` API 키는 필요하지 않습니다.
+
+### 📋 API 키 발급 안내
+
+다음 실거래 데이터 수집을 위한 API 키를 공공데이터포털에서 발급받으세요:
+
+| 데이터 유형 | 설명 | 신청 링크 |
+|------------|------|----------|
+| `regionCd` | 법정동코드 | [신청하기](https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15077871) |
+| `dandok` | 단독/다가구 실거래 | [신청하기](https://www.data.go.kr/data/15126472/openapi.do) |
+| `yeonlip` | 연립다세대 실거래 | [신청하기](https://www.data.go.kr/data/15126473/openapi.do) |
+| `officeHotel` | 오피스텔 실거래 | [신청하기](https://www.data.go.kr/data/15126475/openapi.do) |
+
+> **법정동코드 데이터**는 현재 저장소 내 JSON 파일을 사용하므로 별도의 API 키가 필요하지 않습니다.
+
+## 🗄️ 데이터베이스 설정
+
+### 테이블 자동 생성
+가장 간단한 방법은 [JachuiPlan 메인 프로젝트](https://github.com/Jaehyuk-Lee/JachuiPlan)의 Spring Boot 서버를 한 번 실행하는 것입니다. JPA가 자동으로 필요한 테이블을 생성합니다.
+
+### 데이터 저장 방식
+- **REGIONCD 테이블**: 실행 시마다 기존 데이터를 삭제하고 새로운 데이터로 갱신
+- **실거래 데이터 테이블**: 기존 데이터를 유지하며 새로운 데이터만 추가 (API 호출 제한으로 인한 분할 실행 지원)
+
+## 📁 프로젝트 구조
+
+```
+JachuiPlan_ApiToDb/
+├── config/
+│   ├── config.js           # 데이터베이스 매핑 설정
+│   ├── secrets-example.json # 환경 설정 템플릿
+│   └── secrets.json        # 실제 환경 설정 (생성 필요)
+├── regioncd/               # 법정동코드 관련 모듈
+│   ├── regioncd_seoul.json # 서울 법정동코드 데이터
+│   ├── district_location_filtered.json # 행정구역 위치 데이터
+│   └── regioncd.js         # 법정동코드 처리 로직
+├── transactionData/        # 실거래 데이터 처리 모듈
+├── util/                   # 유틸리티 함수
+├── index.js               # 메인 실행 파일
+└── package.json           # 프로젝트 정보 및 의존성
+```
+
+## 🔧 데이터 매핑 정보
+
+데이터베이스에 저장되는 데이터의 매핑 정보는 `/config/config.js` 파일의 `mapping` 객체를 참고하세요. 이 객체는 API 응답 데이터를 데이터베이스 컬럼으로 매핑하는 규칙을 정의합니다.
+
+## ⚠️ 주의사항
+
+1. **API 호출 제한**: 공공데이터포털 API는 일일 호출 한도가 있으므로, 대량 데이터 수집 시 여러 날에 걸쳐 분할 실행이 필요할 수 있습니다.
+2. **데이터베이스 연결**: Oracle 데이터베이스가 정상적으로 연결되어 있는지 확인하세요.
+3. **API 키 유효성**: 모든 API 키가 정상적으로 발급되고 활성화되어 있는지 확인하세요.
+
+## 🔗 관련 프로젝트
+
+- [JachuiPlan 메인 프로젝트](https://github.com/Jaehyuk-Lee/JachuiPlan): 이 데이터를 활용하는 부동산 정보 서비스

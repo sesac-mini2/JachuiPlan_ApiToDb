@@ -47,6 +47,23 @@ const transformData = (rawData, context) => {
     return objectToArrayWithMapper(convertedData, context.mapping);
 };
 
+// 변환된 데이터를 DB에 삽입하는 공통 함수
+const insertTransformedDataToDB = (transformedData, requests, context) => {
+    let successfulInsertCount = 0;
+
+    transformedData.forEach((arr, index) => {
+        try {
+            oracleUtil.insertMany(context.tableName, context.columns, arr);
+            successfulInsertCount++;
+        } catch (error) {
+            const request = requests[index];
+            console.error(`DB 삽입 실패 - ${request.regionCd} ${request.yearMonth}:`, error.message);
+        }
+    });
+
+    return successfulInsertCount;
+};
+
 // 에러 처리 및 상태 분류
 const processApiResponse = (regionCd, yearMonth, data) => {
     return { status: 'fulfilled', value: data, regionCd, yearMonth };
@@ -99,20 +116,8 @@ const processSuccessfulData = (succeededRequests, partialRequests, context) => {
     const rawData = allSuccessfulRequests.map(result => result.value);
     const transformedData = rawData.map(data => transformData(data, context));
 
-    let successfulInsertCount = 0;
-
-    // Load - 성공한 데이터 즉시 DB 삽입 (각각 개별 처리)
-    transformedData.forEach((arr, index) => {
-        try {
-            oracleUtil.insertMany(context.tableName, context.columns, arr);
-            successfulInsertCount++;
-        } catch (error) {
-            const request = allSuccessfulRequests[index];
-            console.error(`DB 삽입 실패 - ${request.regionCd} ${request.yearMonth}:`, error.message);
-        }
-    });
-
-    return successfulInsertCount;
+    // Load - 성공한 데이터 즉시 DB 삽입
+    return insertTransformedDataToDB(transformedData, allSuccessfulRequests, context);
 };
 
 // 부분 성공 요청들의 재시도 정보 생성
@@ -153,15 +158,7 @@ const processFailedRequests = async (context, allFailedRequests) => {
             const transformedData = rawData.map(data => transformData(data, context));
 
             // 각 데이터셋을 개별적으로 DB에 삽입
-            transformedData.forEach((arr, index) => {
-                try {
-                    oracleUtil.insertMany(context.tableName, context.columns, arr);
-                    successfulDataCount++;
-                } catch (error) {
-                    const request = retryResult.succeeded[index];
-                    console.error(`재시도 DB 삽입 실패 - ${request.regionCd} ${request.yearMonth}:`, error.message);
-                }
-            });
+            successfulDataCount += insertTransformedDataToDB(transformedData, retryResult.succeeded, context);
         }
 
         // 최종 실패한 요청들 로그

@@ -3,6 +3,9 @@ logs
 *.log
 npm-debug.log*
 
+# Performance Test Results
+performance/performance-test-results-*.json
+
 # Node.js
 /config/secrets.json
 /node_modules

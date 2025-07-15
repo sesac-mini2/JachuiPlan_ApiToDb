@@ -18,6 +18,8 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
         mapping: config.mapping[type],  // API/DB 필드간 매핑 정보
     };
 
+    let successfulDataCount = 0;
+
     for (const yearMonth of yearMonthsArr) {
         console.log(`\n=== ${yearMonth} 처리 시작 ===`);
 
@@ -37,20 +39,15 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 
         console.log(`초기 요청 결과: ${succeededRequests.length}개 성공, ${partialRequests.length}개 부분 성공, ${failedRequests.length}개 실패`);
 
-        // 성공한 데이터 처리
-        const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
-        if (allSuccessfulRequests.length > 0) {
-            const rawData = allSuccessfulRequests.map(result => result.value);
-            const allTransformedData = rawData.map(data => transformData(data, context));
-
-            // DB 삽입 실행
-            allTransformedData.forEach(arr => {
-                oracleUtil.insertMany(context.tableName, context.columns, arr);
-            });
-        }
+        // 성공한 데이터 즉시 처리
+        successfulDataCount += await processSuccessfulData(succeededRequests, partialRequests, context);
 
         await sleep(1000);
     }
+
+    // 처리 완료 로그
+    console.log(`\n=== 전체 처리 완료 ===`);
+    console.log(`총 ${successfulDataCount}개의 데이터셋이 성공적으로 처리되었습니다.`);
 }
 
 // ==================== 헬퍼 함수들 ====================
@@ -59,6 +56,41 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 const transformData = (rawData, context) => {
     const convertedData = rawData.map(context.convertFunc);
     return objectToArrayWithMapper(convertedData, context.mapping);
+};
+
+// 변환된 데이터를 DB에 삽입하는 공통 함수
+const insertTransformedDataToDB = async (transformedData, requests, context) => {
+    // 모든 DB 삽입을 병렬로 처리
+    const insertPromises = transformedData.map(async (arr, index) => {
+        try {
+            await oracleUtil.insertMany(context.tableName, context.columns, arr);
+            return { success: true, index };
+        } catch (error) {
+            const request = requests[index];
+            console.error(`DB 삽입 실패 - ${request.regionCd} ${request.yearMonth}:`, error.message);
+            return { success: false, index };
+        }
+    });
+
+    // 모든 삽입이 완료될 때까지 대기
+    const results = await Promise.all(insertPromises);
+
+    // 성공한 삽입 개수 계산
+    const successfulInsertCount = results.filter(result => result.success).length;
+
+    return successfulInsertCount;
+};
+
+// 성공한 데이터 즉시 처리
+const processSuccessfulData = async (succeededRequests, partialRequests, context) => {
+    const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
+    if (allSuccessfulRequests.length === 0) return 0;
+
+    const rawData = allSuccessfulRequests.map(result => result.value);
+    const transformedData = rawData.map(data => transformData(data, context));
+
+    // Load - 성공한 데이터 즉시 DB 삽입 (병렬 처리, 완료 대기)
+    return await insertTransformedDataToDB(transformedData, allSuccessfulRequests, context);
 };
 
 // 에러 처리 및 상태 분류

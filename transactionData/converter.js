@@ -2,6 +2,7 @@ import { sleep, objectToArrayWithMapper } from '../util/util.js';
 import requestUtil from '../util/request.util.js';
 import oracleUtil from '../util/oracle.util.js';
 import config from '../config/config.js';
+import performanceMonitor from '../performance/monitor.js';
 
 // ==================== 메인 함수 ====================
 
@@ -202,27 +203,62 @@ const transformData = (rawData, context) => {
     return objectToArrayWithMapper(convertedData, context.mapping);
 };
 
-// 변환된 데이터를 DB에 삽입하는 공통 함수
+// 변환된 데이터를 DB에 삽입하는 최적화된 함수
 const insertTransformedDataToDB = async (transformedData, requests, context) => {
-    // 모든 DB 삽입을 병렬로 처리
-    const insertPromises = transformedData.map(async (arr, index) => {
-        try {
-            await oracleUtil.insertMany(context.tableName, context.columns, arr);
-            return { success: true, index };
-        } catch (error) {
-            const request = requests[index];
-            console.error(`DB 삽입 실패 - ${request.regionCd} ${request.yearMonth}:`, error.message);
-            return { success: false, index };
-        }
+    // 모든 배치를 하나로 합치기
+    const combinedData = [];
+    const batchInfo = [];
+
+    transformedData.forEach((batch, index) => {
+        const startIndex = combinedData.length;
+        combinedData.push(...batch);
+        batchInfo.push({
+            index,
+            startIndex,
+            endIndex: combinedData.length - 1,
+            request: requests[index]
+        });
     });
 
-    // 모든 삽입이 완료될 때까지 대기
-    const results = await Promise.all(insertPromises);
+    if (combinedData.length === 0) {
+        return 0;
+    }
 
-    // 성공한 삽입 개수 계산
-    const successfulInsertCount = results.filter(result => result.success).length;
+    try {
+        // 대량 삽입 사용 (배치 크기 최적화)
+        const batchSize = Math.min(1000, Math.max(100, Math.floor(combinedData.length / 10)));
+        const insertedRows = await oracleUtil.bulkInsert(context.tableName, context.columns, combinedData, batchSize);
 
-    return successfulInsertCount;
+        // 성능 모니터링 기록
+        performanceMonitor.recordInsert(context.tableName, insertedRows);
+        performanceMonitor.recordBatch(context.tableName, 1);
+
+        console.log(`DB 삽입 완료: ${insertedRows}개 행 (요청 ${requests.length}개)`);
+        return requests.length; // 성공한 요청 개수 반환
+    } catch (error) {
+        console.error(`대량 삽입 실패, 개별 삽입으로 전환:`, error.message);
+        performanceMonitor.recordError(context.tableName, 1);
+
+        // 대량 삽입 실패 시 개별 배치로 폴백
+        let successCount = 0;
+        for (const batch of batchInfo) {
+            try {
+                const batchData = combinedData.slice(batch.startIndex, batch.endIndex + 1);
+                const insertedRows = await oracleUtil.insertMany(context.tableName, context.columns, batchData);
+
+                // 성능 모니터링 기록
+                performanceMonitor.recordInsert(context.tableName, insertedRows);
+                performanceMonitor.recordBatch(context.tableName, 1);
+
+                successCount++;
+                console.log(`개별 삽입 성공: ${batch.request.regionCd} ${batch.request.yearMonth}`);
+            } catch (batchError) {
+                console.error(`개별 삽입 실패 - ${batch.request.regionCd} ${batch.request.yearMonth}:`, batchError.message);
+                performanceMonitor.recordError(context.tableName, 1);
+            }
+        }
+        return successCount;
+    }
 };
 
 // 성공한 데이터 즉시 처리

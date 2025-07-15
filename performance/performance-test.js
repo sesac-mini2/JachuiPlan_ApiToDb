@@ -13,12 +13,25 @@ class PerformanceTest {
         this.results = [];
         this.commits = commits; // 비교할 커밋들
         this.testConfig = {
-            startYearMonth: "202411",
-            endYearMonth: "202411",
-            // 테스트용으로 작은 데이터셋 사용
-            testRegionCodes: ["11170"], // 용산구만 테스트
+            startYearMonth: "202407",
+            endYearMonth: "202412",
+            // 서울특별시 절반 테스트 (12개 구)
+            testRegionCodes: [
+                "11110",
+                "11140",
+                "11170",
+                "11200",
+                "11215",
+                "11230",
+                "11260",
+                "11290",
+                "11305",
+                "11320",
+                "11350",
+                "11380"
+            ],
             // 성능 테스트 반복 횟수
-            repeatCount: 10
+            repeatCount: 5
         };
     }
 

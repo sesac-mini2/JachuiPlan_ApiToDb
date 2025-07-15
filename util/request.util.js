@@ -4,10 +4,12 @@ import config from '../config/config.js';
 
 const numOfRows = 1000;
 
-async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH) {
-    let pageNo = 1;
+async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH, startPage = 1) {
+    let pageNo = startPage;
     let totalCount;
     let items = [];
+    let lastSuccessfulPage = startPage - 1;
+
     do {
         let rows;
         try {
@@ -24,36 +26,50 @@ async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH) {
             // XML 형식의 에러 응답 체크
             if (typeof response.data === 'string' && response.data.includes('<OpenAPI_ServiceResponse>')) {
                 const errorInfo = parseXmlError(response.data);
-                console.error(`API 에러 발생: ${errorInfo.errMsg} (코드: ${errorInfo.returnReasonCode})`);
+                console.error(`API 에러 발생 (페이지 ${pageNo}): ${errorInfo.errMsg} (코드: ${errorInfo.returnReasonCode})`);
 
                 // 에러 타입에 따른 처리
                 if (errorInfo.returnReasonCode === '30') {
-                    throw new Error('SERVICE_KEY_IS_NOT_REGISTERED_ERROR: API 키가 등록되지 않았습니다.');
+                    // 이미 수집한 데이터와 함께 에러 정보 반환
+                    const error = new Error('SERVICE_KEY_IS_NOT_REGISTERED_ERROR: API 키가 등록되지 않았습니다.');
+                    error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
+                    throw error;
                 } else if (errorInfo.returnReasonCode === '22') {
-                    throw new Error('LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR: API 호출 횟수가 초과되었습니다.');
+                    const error = new Error('LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR: API 호출 횟수가 초과되었습니다.');
+                    error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
+                    throw error;
                 } else if (errorInfo.returnReasonCode === '23') {
-                    throw new Error('LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND_EXCEEDS_ERROR: 초당 API 호출 횟수가 초과되었습니다.');
+                    const error = new Error('LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND_EXCEEDS_ERROR: 초당 API 호출 횟수가 초과되었습니다.');
+                    error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
+                    throw error;
                 } else {
-                    throw new Error(`API 에러: ${errorInfo.errMsg} (코드: ${errorInfo.returnReasonCode})`);
+                    const error = new Error(`API 에러: ${errorInfo.errMsg} (코드: ${errorInfo.returnReasonCode})`);
+                    error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
+                    throw error;
                 }
             }
 
             const data = response.data.response;
             rows = data.body.items.item;
             totalCount = data.body.totalCount;
+
+            // 성공한 페이지 데이터 추가
+            items.push(...rows);
+            lastSuccessfulPage = pageNo;
+
         } catch (err) {
-            // 네트워크 에러 처리
-            if (err.code === 'ECONNABORTED' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET') {
-                throw new Error(`NETWORK_ERROR: 네트워크 연결 오류 - ${err.message}`);
-            } else if (err.response) {
-                // HTTP 상태 코드 에러 (4xx, 5xx)
-                throw new Error(`HTTP_ERROR: HTTP ${err.response.status} - ${err.response.statusText}`);
+            // 네트워크 에러 등 기타 에러 처리
+            if (err.partialData) {
+                // 이미 partialData가 있는 API 에러는 그대로 throw
+                throw err;
             } else {
-                // XML 파싱에서 발생한 API 에러나 데이터 파싱 에러는 그대로 재전파
+                // 새로운 에러에 partialData 추가
+                console.error(`네트워크 에러 발생 (페이지 ${pageNo}):`, err.message);
+                err.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
                 throw err;
             }
         }
-        items.push(...rows);
+
         pageNo++;
     } while ((pageNo - 1) * numOfRows < totalCount);
     return items;
@@ -71,6 +87,16 @@ function parseXmlError(xmlString) {
         errMsg: extractValue('errMsg'),
         returnAuthMsg: extractValue('returnAuthMsg'),
         returnReasonCode: extractValue('returnReasonCode')
+    };
+}
+
+// 부분 데이터 객체 생성 함수
+function createPartialData(items, lastSuccessfulPage, failedPage, totalCount) {
+    return {
+        collectedItems: items,
+        lastSuccessfulPage: lastSuccessfulPage,
+        failedPage: failedPage,
+        totalCount: totalCount
     };
 }
 

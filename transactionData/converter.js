@@ -3,50 +3,229 @@ import requestUtil from '../util/request.util.js';
 import oracleUtil from '../util/oracle.util.js';
 import config from '../config/config.js';
 
+// ==================== 메인 함수 ====================
+
+async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr) {
+    // 1. 초기 설정 및 검증
+    if (config.apiInfo[type].limitPerDay < regionCdArr.length * yearMonthsArr.length) {
+        throw new Error("이대로 실행하면 API 호출 횟수 무조건 초과");
+    }
+
+    const columns = Object.entries(config.mapping[type]).map((row) => row[1]);
+    const mapping = config.mapping[type];
+    const allFailedRequests = [];
+    const allSuccessfulData = [];
+
+    // 2. 연월별 초기 처리
+    for (const yearMonth of yearMonthsArr) {
+        const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(type, regionCdArr, yearMonth);
+
+        // 3. 성공한 데이터 즉시 처리
+        processSuccessfulData(succeededRequests, partialRequests, convertFunc, mapping, tableName, columns, allSuccessfulData);
+
+        // 4. 실패한 요청들 수집
+        const partialRetryRequests = createPartialRetryRequests(partialRequests);
+        allFailedRequests.push(...failedRequests, ...partialRetryRequests);
+    }
+
+    // 5. 실패한 요청들 일괄 재시도
+    await processFailedRequests(type, allFailedRequests, convertFunc, mapping, tableName, columns, allSuccessfulData);
+
+    // 6. 처리 완료 로그
+    console.log(`\n=== 전체 처리 완료 ===`);
+    console.log(`총 ${allSuccessfulData.length}개의 데이터셋이 성공적으로 처리되었습니다.`);
+}
+
+// ==================== 헬퍼 함수들 ====================
+
 // 데이터 변환 담당
 const transformData = (rawData, convertFunc, mapping) => {
     const convertedData = rawData.map(convertFunc);
     return objectToArrayWithMapper(convertedData, mapping);
 };
 
-// 사이드 이펙트를 포함한 메인 함수
-async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr) {
-    if (config.apiInfo[type].limitPerDay < regionCdArr.length * yearMonthsArr.length)
-        throw new Error("이대로 실행하면 API 호출 횟수 무조건 초과");
+// 에러 처리 및 상태 분류
+const processApiResponse = (regionCd, yearMonth, data) => {
+    return { status: 'fulfilled', value: data, regionCd, yearMonth };
+};
 
-    const columns = Object.entries(config.mapping[type]).map((row) => row[1]);
-    const mapping = config.mapping[type];
+const processApiError = (regionCd, yearMonth, error) => {
+    // 부분 데이터가 있는 경우 처리
+    if (error.partialData && error.partialData.collectedItems.length > 0) {
+        console.warn(`부분 데이터 수집됨 - ${regionCd} ${yearMonth}: ${error.partialData.collectedItems.length}개 항목 (페이지 ${error.partialData.lastSuccessfulPage}까지)`);
+        return {
+            status: 'partial',
+            value: error.partialData.collectedItems,
+            regionCd,
+            yearMonth,
+            error: error,
+            partialData: error.partialData
+        };
+    }
+    return { status: 'rejected', reason: error, regionCd, yearMonth };
+};
 
-    for (const yearMonth of yearMonthsArr) {
-        // Extract
-        // API 요청을 병렬로 실행
-        const dataPromises = regionCdArr.map(regionCd =>
-            requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonth)
-        );
+// 연월별 초기 API 요청 처리
+const processYearMonth = async (type, regionCdArr, yearMonth) => {
+    console.log(`\n=== ${yearMonth} 처리 시작 ===`);
 
-        // 모든 API 요청이 완료될 때까지 대기
-        const allRawData = await Promise.all(dataPromises);
+    // API 요청을 병렬로 실행
+    const dataPromises = regionCdArr.map(regionCd =>
+        requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonth)
+            .then(data => processApiResponse(regionCd, yearMonth, data))
+            .catch(error => processApiError(regionCd, yearMonth, error))
+    );
 
-        // Transform
-        // 데이터 변환
-        const allTransformedData = allRawData.map(rawData =>
-            transformData(rawData, convertFunc, mapping)
-        );
+    const allResults = await Promise.all(dataPromises);
 
-        // Load
-        // DB 삽입 실행
-        allTransformedData.forEach(arr => {
+    // 성공한 요청들과 실패한 요청들, 부분 성공 요청들 분리
+    const succeededRequests = allResults.filter(result => result.status === 'fulfilled');
+    const partialRequests = allResults.filter(result => result.status === 'partial');
+    const failedRequests = allResults.filter(result => result.status === 'rejected');
+
+    console.log(`초기 요청 결과: ${succeededRequests.length}개 성공, ${partialRequests.length}개 부분 성공, ${failedRequests.length}개 실패`);
+
+    return { succeededRequests, partialRequests, failedRequests };
+};
+
+// 성공한 데이터 즉시 처리
+const processSuccessfulData = (succeededRequests, partialRequests, convertFunc, mapping, tableName, columns, allSuccessfulData) => {
+    const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
+    if (allSuccessfulRequests.length > 0) {
+        const rawData = allSuccessfulRequests.map(result => result.value);
+        const transformedData = rawData.map(data => transformData(data, convertFunc, mapping));
+
+        // Load - 성공한 데이터 즉시 DB 삽입
+        transformedData.forEach(arr => {
             oracleUtil.insertMany(tableName, columns, arr);
         });
 
-        // 초당 API 호출 횟수를 넘지 않도록 1초 대기
-        // 지금은 regionCdArr.length만큼 한 번에 호출하고 1초 대기하는데
-        // 나중에는 regionCdArr의 크기가 매우 커질 수 있음.
-        // 그 때 가서 방법을 생각해봐야할듯. 다음과 같은 방식들을 생각해봄.
-        // 1. 미리 배열 크기 계산해서 배열을 짤라서 호출 (regionCdArr.length가 100이 넘어가면 100개씩 짤라서 호출)
-        // 2. 초당 API 호출 LIMIT 초과 ERROR가 뜬걸 확인하면 에러 뜬 항목을 포함해서 1초 뒤에 다시 호출
+        allSuccessfulData.push(...transformedData);
+    }
+};
+
+// 부분 성공 요청들의 재시도 정보 생성
+const createPartialRetryRequests = (partialRequests) => {
+    return partialRequests.map(result => ({
+        regionCd: result.regionCd,
+        yearMonth: result.yearMonth,
+        reason: result.error,
+        startPage: result.partialData.lastSuccessfulPage + 1,
+        totalCount: result.partialData.totalCount
+    }));
+};
+
+// 실패한 요청들 일괄 재시도 처리
+const processFailedRequests = async (type, allFailedRequests, convertFunc, mapping, tableName, columns, allSuccessfulData) => {
+    if (allFailedRequests.length === 0) return;
+
+    console.log(`\n=== 실패한 요청들 일괄 재시도 시작 ===`);
+    console.log(`총 ${allFailedRequests.length}개의 실패한 요청들을 재시도합니다.`);
+
+    // 실패한 요청들을 작은 배치로 나누어 처리 (API 제한 고려)
+    const batchSize = 100;
+    const batches = [];
+
+    for (let i = 0; i < allFailedRequests.length; i += batchSize) {
+        batches.push(allFailedRequests.slice(i, i + batchSize));
+    }
+
+    for (const batch of batches) {
+        console.log(`배치 처리: ${batch.length}개 요청`);
+        const retryResult = await retryFailedRequests(type, batch);
+
+        // 재시도 성공한 데이터 처리
+        if (retryResult.succeeded.length > 0) {
+            const rawData = retryResult.succeeded.map(result => result.value);
+            const transformedData = rawData.map(data => transformData(data, convertFunc, mapping));
+
+            transformedData.forEach(arr => {
+                oracleUtil.insertMany(tableName, columns, arr);
+            });
+
+            allSuccessfulData.push(...transformedData);
+        }
+
+        // 최종 실패한 요청들 로그
+        if (retryResult.failed.length > 0) {
+            console.error(`배치 내 최종 실패한 요청들:`);
+            retryResult.failed.forEach(({ regionCd, yearMonth, reason }) => {
+                console.error(`- ${regionCd} ${yearMonth}: ${reason.message}`);
+            });
+        }
+
+        // 배치 간 대기
         await sleep(1000);
     }
-}
+};
+
+// 실패한 요청들을 재시도하는 함수
+const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
+    let retryCount = 0;
+    let currentFailedRequests = [...failedRequests];
+
+    while (currentFailedRequests.length > 0 && retryCount < maxRetries) {
+        console.log(`재시도 ${retryCount + 1}/${maxRetries}: ${currentFailedRequests.length}개 요청 재시도`);
+
+        // 실패한 요청들만 재시도
+        const retryPromises = currentFailedRequests.map(({ regionCd, yearMonth, startPage = 1 }) => {
+            console.log(`재시도: ${regionCd} ${yearMonth} (페이지 ${startPage}부터)`);
+
+            return requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonth, startPage)
+                .then(data => ({ status: 'fulfilled', value: data, regionCd, yearMonth }))
+                .catch(error => {
+                    // 부분 데이터가 있는 경우 처리
+                    if (error.partialData && error.partialData.collectedItems.length > 0) {
+                        console.warn(`재시도 중 부분 데이터 수집됨 - ${regionCd} ${yearMonth}: ${error.partialData.collectedItems.length}개 항목 (페이지 ${error.partialData.lastSuccessfulPage}까지)`);
+                        return {
+                            status: 'partial',
+                            value: error.partialData.collectedItems,
+                            regionCd,
+                            yearMonth,
+                            error: error,
+                            partialData: error.partialData
+                        };
+                    }
+                    return { status: 'rejected', reason: error, regionCd, yearMonth };
+                });
+        });
+
+        const retryResults = await Promise.all(retryPromises);
+
+        // 성공한 요청들과 여전히 실패한 요청들, 부분 성공 요청들 분리
+        const succeededRequests = retryResults.filter(result => result.status === 'fulfilled');
+        const partialRequests = retryResults.filter(result => result.status === 'partial');
+        const stillFailedRequests = retryResults.filter(result => result.status === 'rejected');
+
+        console.log(`재시도 결과: ${succeededRequests.length}개 성공, ${partialRequests.length}개 부분 성공, ${stillFailedRequests.length}개 실패`);
+
+        // 성공한 요청들과 부분 성공 요청들을 반환할 배열에 추가
+        const allSucceededInRetry = [...succeededRequests, ...partialRequests];
+
+        // 부분 성공한 요청들의 재시도 정보 생성 (다음 재시도를 위해)
+        const newPartialRetryRequests = partialRequests.map(result => ({
+            regionCd: result.regionCd,
+            yearMonth: result.yearMonth,
+            reason: result.error,
+            startPage: result.partialData.lastSuccessfulPage + 1,
+            totalCount: result.partialData.totalCount
+        }));
+
+        // 다음 재시도를 위해 완전 실패한 요청들과 부분 성공 요청들 결합
+        currentFailedRequests = [...stillFailedRequests, ...newPartialRetryRequests];
+
+        // 성공한 요청들을 반환할 배열에 추가
+        if (allSucceededInRetry.length > 0) {
+            return { succeeded: allSucceededInRetry, failed: currentFailedRequests };
+        }
+
+        retryCount++;
+
+        // 요청 사이 1초 대기
+        await sleep(1000);
+    }
+
+    return { succeeded: [], failed: currentFailedRequests };
+};
 
 export default { APItoDB };

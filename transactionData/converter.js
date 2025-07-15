@@ -11,17 +11,25 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
         throw new Error("이대로 실행하면 API 호출 횟수 무조건 초과");
     }
 
-    const columns = Object.entries(config.mapping[type]).map((row) => row[1]);
-    const mapping = config.mapping[type];
+    // 공통 컨텍스트 객체 생성
+    const context = {
+        type,                    // API 타입
+        tableName,               // 테이블 명
+        convertFunc,             // 변환 함수
+        columns: Object.entries(config.mapping[type]).map((row) => row[1]), // 컬럼 배열
+        mapping: config.mapping[type],  // API/DB 필드간 매핑 정보
+    };
+
+    // 실행 상태 데이터
     const allFailedRequests = [];
     const allSuccessfulData = [];
 
     // 2. 연월별 초기 처리
     for (const yearMonth of yearMonthsArr) {
-        const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(type, regionCdArr, yearMonth);
+        const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(context.type, regionCdArr, yearMonth);
 
         // 3. 성공한 데이터 즉시 처리
-        processSuccessfulData(succeededRequests, partialRequests, convertFunc, mapping, tableName, columns, allSuccessfulData);
+        processSuccessfulData(succeededRequests, partialRequests, context, allSuccessfulData);
 
         // 4. 실패한 요청들 수집
         const partialRetryRequests = createPartialRetryRequests(partialRequests);
@@ -29,7 +37,7 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
     }
 
     // 5. 실패한 요청들 일괄 재시도
-    await processFailedRequests(type, allFailedRequests, convertFunc, mapping, tableName, columns, allSuccessfulData);
+    await processFailedRequests(context, allFailedRequests, allSuccessfulData);
 
     // 6. 처리 완료 로그
     console.log(`\n=== 전체 처리 완료 ===`);
@@ -39,9 +47,9 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 // ==================== 헬퍼 함수들 ====================
 
 // 데이터 변환 담당
-const transformData = (rawData, convertFunc, mapping) => {
-    const convertedData = rawData.map(convertFunc);
-    return objectToArrayWithMapper(convertedData, mapping);
+const transformData = (rawData, context) => {
+    const convertedData = rawData.map(context.convertFunc);
+    return objectToArrayWithMapper(convertedData, context.mapping);
 };
 
 // 에러 처리 및 상태 분류
@@ -89,15 +97,15 @@ const processYearMonth = async (type, regionCdArr, yearMonth) => {
 };
 
 // 성공한 데이터 즉시 처리
-const processSuccessfulData = (succeededRequests, partialRequests, convertFunc, mapping, tableName, columns, allSuccessfulData) => {
+const processSuccessfulData = (succeededRequests, partialRequests, context, allSuccessfulData) => {
     const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
     if (allSuccessfulRequests.length > 0) {
         const rawData = allSuccessfulRequests.map(result => result.value);
-        const transformedData = rawData.map(data => transformData(data, convertFunc, mapping));
+        const transformedData = rawData.map(data => transformData(data, context));
 
         // Load - 성공한 데이터 즉시 DB 삽입
         transformedData.forEach(arr => {
-            oracleUtil.insertMany(tableName, columns, arr);
+            oracleUtil.insertMany(context.tableName, context.columns, arr);
         });
 
         allSuccessfulData.push(...transformedData);
@@ -116,7 +124,7 @@ const createPartialRetryRequests = (partialRequests) => {
 };
 
 // 실패한 요청들 일괄 재시도 처리
-const processFailedRequests = async (type, allFailedRequests, convertFunc, mapping, tableName, columns, allSuccessfulData) => {
+const processFailedRequests = async (context, allFailedRequests, allSuccessfulData) => {
     if (allFailedRequests.length === 0) return;
 
     console.log(`\n=== 실패한 요청들 일괄 재시도 시작 ===`);
@@ -132,15 +140,15 @@ const processFailedRequests = async (type, allFailedRequests, convertFunc, mappi
 
     for (const batch of batches) {
         console.log(`배치 처리: ${batch.length}개 요청`);
-        const retryResult = await retryFailedRequests(type, batch);
+        const retryResult = await retryFailedRequests(context.type, batch);
 
         // 재시도 성공한 데이터 처리
         if (retryResult.succeeded.length > 0) {
             const rawData = retryResult.succeeded.map(result => result.value);
-            const transformedData = rawData.map(data => transformData(data, convertFunc, mapping));
+            const transformedData = rawData.map(data => transformData(data, context));
 
             transformedData.forEach(arr => {
-                oracleUtil.insertMany(tableName, columns, arr);
+                oracleUtil.insertMany(context.tableName, context.columns, arr);
             });
 
             allSuccessfulData.push(...transformedData);

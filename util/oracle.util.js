@@ -1,6 +1,5 @@
 import oracledb from 'oracledb';
 import secrets from "../config/secrets.json" with { type: "json" };
-import { checkAllowedTable } from './util.js';
 
 async function getConnection() {
     return oracledb.getConnection({
@@ -30,8 +29,6 @@ async function connectionHandler(func) {
 }
 
 async function select(table, columns) {
-    checkAllowedTable(table);
-
     return await connectionHandler(async (connection) => {
         // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
         // TODO: 현재 매핑은 api로 가져온 데이터와 테이블 칼럼이 1:1 대응하는 경우를 대응하는 중 (API에는 ID가 없음)
@@ -49,8 +46,6 @@ async function select(table, columns) {
 }
 
 async function insertMany(table, columns, rows) {
-    checkAllowedTable(table);
-
     await connectionHandler(async (connection) => {
         // Insert some data
         let sql = `insert into ${table} (`;

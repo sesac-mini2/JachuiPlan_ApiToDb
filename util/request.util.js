@@ -38,6 +38,10 @@ async function recursiveRequestRTMSDataSvc(type, LAWD_CD, YEARMONTH, startPage =
                     const error = new Error('LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR: API 호출 횟수가 초과되었습니다.');
                     error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
                     throw error;
+                } else if (errorInfo.returnReasonCode === '23') {
+                    const error = new Error('LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND_EXCEEDS_ERROR: 초당 API 호출 횟수가 초과되었습니다.');
+                    error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);
+                    throw error;
                 } else {
                     const error = new Error(`API 에러: ${errorInfo.errMsg} (코드: ${errorInfo.returnReasonCode})`);
                     error.partialData = createPartialData(items, lastSuccessfulPage, pageNo, totalCount);

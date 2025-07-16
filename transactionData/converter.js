@@ -12,8 +12,8 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
         type,                    // API 타입
         tableName,               // 테이블 명
         convertFunc,             // 변환 함수
-        columns: Object.entries(config.mapping[type]).map((row) => row[1]), // 컬럼 배열
-        mapping: config.mapping[type],  // API/DB 필드간 매핑 정보
+        columns: Object.values(config.mapping[type].fields), // 컬럼 배열
+        fieldMapping: config.mapping[type].fields,  // API/DB 필드간 매핑 정보
     };
 
     // 실행 상태 데이터
@@ -200,7 +200,7 @@ const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
 // 데이터 변환 담당
 const transformData = (rawData, context) => {
     const convertedData = rawData.map(context.convertFunc);
-    return objectToArrayWithMapper(convertedData, context.mapping);
+    return objectToArrayWithMapper(convertedData, context.fieldMapping);
 };
 
 // 변환된 데이터를 DB에 삽입하는 최적화된 함수

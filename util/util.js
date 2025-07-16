@@ -37,12 +37,6 @@ function objectToArrayWithMapper(obj, mapping) {
     });
 }
 
-function checkAllowedTable(table) {
-    if (!config.allowedTables.includes(table)) {
-        throw new Error('Invalid table name');
-    }
-}
-
 function generateYearMonths(startYearMonth, endYearMonth) {
     // 입력 검증 (길이만 검증)
     if (startYearMonth.length !== 6 || endYearMonth.length !== 6) {
@@ -72,4 +66,4 @@ function generateYearMonths(startYearMonth, endYearMonth) {
     return yearMonths;
 }
 
-export { sleep, pick, objectToArrayWithMapper, checkAllowedTable, generateYearMonths };
+export { sleep, pick, objectToArrayWithMapper, generateYearMonths };

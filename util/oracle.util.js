@@ -101,6 +101,19 @@ function getPoolStatus() {
     return status;
 }
 
+async function checkTableExists(table) {
+    return await connectionHandler(async (connection) => {
+        try {
+            const sql = `SELECT COUNT(*) AS table_count FROM USER_TABLES WHERE TABLE_NAME = :table_name`;
+            const result = await connection.execute(sql, [table.toUpperCase()], { outFormat: oracledb.OUT_FORMAT_OBJECT });
+            return result.rows[0].TABLE_COUNT > 0;
+        } catch (err) {
+            console.error(`테이블 존재 확인 실패: ${table}`, err);
+            return false;
+        }
+    });
+}
+
 async function select(table, columns) {
     return await connectionHandler(async (connection) => {
         // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
@@ -233,6 +246,7 @@ export default {
     closePool,
     getPoolStatus,
     connectionHandler,
+    checkTableExists,
     select,
     insertMany,
     bulkInsert,

@@ -1,6 +1,5 @@
 import oracledb from 'oracledb';
 import secrets from "../config/secrets.json" with { type: "json" };
-import { checkAllowedTable } from './util.js';
 
 // Connection Pool 설정
 let pool = null;
@@ -102,9 +101,20 @@ function getPoolStatus() {
     return status;
 }
 
-async function select(table, columns) {
-    checkAllowedTable(table);
+async function checkTableExists(table) {
+    return await connectionHandler(async (connection) => {
+        try {
+            const sql = `SELECT COUNT(*) AS table_count FROM USER_TABLES WHERE TABLE_NAME = :table_name`;
+            const result = await connection.execute(sql, [table.toUpperCase()], { outFormat: oracledb.OUT_FORMAT_OBJECT });
+            return result.rows[0].TABLE_COUNT > 0;
+        } catch (err) {
+            console.error(`테이블 존재 확인 실패: ${table}`, err);
+            return false;
+        }
+    });
+}
 
+async function select(table, columns) {
     return await connectionHandler(async (connection) => {
         // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
         // TODO: 현재 매핑은 api로 가져온 데이터와 테이블 칼럼이 1:1 대응하는 경우를 대응하는 중 (API에는 ID가 없음)
@@ -122,8 +132,6 @@ async function select(table, columns) {
 }
 
 async function insertMany(table, columns, rows) {
-    checkAllowedTable(table);
-
     return await connectionHandler(async (connection) => {
         try {
             // Insert some data
@@ -194,8 +202,6 @@ async function deleteRegionCdTableItems() {
 
 // 대량 삽입을 위한 최적화된 함수
 async function bulkInsert(table, columns, rows, batchSize = 1000) {
-    checkAllowedTable(table);
-
     if (!rows || rows.length === 0) {
         console.log("삽입할 데이터가 없습니다.");
         return 0;
@@ -240,6 +246,7 @@ export default {
     closePool,
     getPoolStatus,
     connectionHandler,
+    checkTableExists,
     select,
     insertMany,
     bulkInsert,

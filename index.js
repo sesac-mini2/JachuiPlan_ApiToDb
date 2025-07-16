@@ -27,11 +27,11 @@ async function main() {
         // 오라클 DB에 API로 가져온 법정동코드, 행정구역 한국어 이름 데이터 삽입
         console.log("지역코드 데이터를 처리합니다...");
         let gu = regionCd.getRegionCdFromJson();
-        const arr = objectToArrayWithMapper(gu, config.mapping.regionCd);
+        const arr = objectToArrayWithMapper(gu, config.mapping.regionCd.fields);
         console.log(`${arr.length}개의 지역코드 데이터를 처리합니다.`);
 
         await oracleUtil.deleteRegionCdTableItems();
-        const insertedRegionCd = await oracleUtil.bulkInsert('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]), arr);
+        const insertedRegionCd = await oracleUtil.bulkInsert('REGIONCD', Object.values(config.mapping.regionCd.fields), arr);
 
         // 성능 모니터링 기록
         performanceMonitor.recordInsert('REGIONCD', insertedRegionCd);
@@ -46,9 +46,9 @@ async function main() {
         console.log(`예상 총 API 호출 수: ${regionCdArr.length * yearMonthsArr.length * 3}개`);
 
         // API 호출 전 검증
-        validator.validateAll('dandok', regionCdArr, yearMonthsArr);
-        validator.validateAll('yeonlip', regionCdArr, yearMonthsArr);
-        validator.validateAll('officeHotel', regionCdArr, yearMonthsArr);
+        await validator.validateAll('dandok', regionCdArr, yearMonthsArr);
+        await validator.validateAll('yeonlip', regionCdArr, yearMonthsArr);
+        await validator.validateAll('officeHotel', regionCdArr, yearMonthsArr);
 
         // 데이터 변환 및 DB 저장
         console.log("\n=== 데이터 수집 및 변환 시작 ===");

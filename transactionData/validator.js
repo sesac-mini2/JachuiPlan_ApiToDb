@@ -1,4 +1,5 @@
 import config from '../config/config.js';
+import oracleUtil from '../util/oracle.util.js';
 
 // 간단한 로그 유틸리티
 const log = {
@@ -63,19 +64,42 @@ const validateRegionCodes = (regionCdArr) => {
 };
 
 /**
+ * 데이터베이스 테이블 존재 검증
+ */
+const validateTableExists = async (type) => {
+    const tableMapping = config.mapping[type];
+    if (!tableMapping || !tableMapping.meta || !tableMapping.meta.table) {
+        throw new Error(`테이블 매핑 정보를 찾을 수 없습니다: ${type}`);
+    }
+
+    const tableName = tableMapping.meta.table;
+    const exists = await oracleUtil.checkTableExists(tableName);
+
+    if (!exists) {
+        throw new Error(`데이터베이스에 테이블이 존재하지 않습니다: ${tableName}`);
+    }
+
+    log.info(`테이블 존재 검증 통과: ${tableName}`);
+    return true;
+};
+
+/**
  * 전체 초기 검증 실행
  */
-const validateAll = (type, regionCdArr, yearMonthsArr) => {
+const validateAll = async (type, regionCdArr, yearMonthsArr) => {
     log.info(`=== ${type} 초기 검증 시작 ===`);
 
     try {
         // 1. 설정 파일 검증
         validateConfig(type);
 
-        // 2. 지역 코드 형식 검증
+        // 2. 데이터베이스 테이블 존재 검증
+        await validateTableExists(type);
+
+        // 3. 지역 코드 형식 검증
         validateRegionCodes(regionCdArr);
 
-        // 3. API 호출 제한량 검증
+        // 4. API 호출 제한량 검증
         validateApiLimits(type, regionCdArr, yearMonthsArr);
 
         log.info(`=== ${type} 모든 초기 검증 완료 ===`);
@@ -91,5 +115,6 @@ export default {
     validateAll,
     validateApiLimits,
     validateConfig,
-    validateRegionCodes
+    validateRegionCodes,
+    validateTableExists
 };

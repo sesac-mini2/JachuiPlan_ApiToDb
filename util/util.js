@@ -12,22 +12,22 @@ function pick(obj, props) {
     }, {});
 }
 
-// 객체를 지정된 순서에 따라 배열로 변환 (mapping에 정의된 객체 속성 순서대로)
-function objectToArrayWithMapper(obj, mapping) {
+// 객체를 지정된 순서에 따라 배열로 변환 (fieldMapping에 정의된 객체 속성 순서대로)
+function objectToArrayWithMapper(obj, fieldMapping) {
     return Object.entries(obj).map(([key, value]) => {
         const result = [];
-        Object.keys(mapping).forEach((prop, index) => {
+        Object.keys(fieldMapping).forEach((prop, index) => {
             let convertedValue = value[prop] ?? '';
 
             // String으로 저장된 Number 처리
-            if (mapping[prop].type === 'NUMBER' && typeof convertedValue === 'string') {
+            if (fieldMapping[prop].type === 'NUMBER' && typeof convertedValue === 'string') {
                 if (convertedValue !== '')
                     convertedValue = Number(convertedValue);
                 else
                     convertedValue = null;
             }
             // Number로 저장된 String 처리
-            else if (mapping[prop].type === 'STRING' && typeof convertedValue === 'number') {
+            else if (fieldMapping[prop].type === 'STRING' && typeof convertedValue === 'number') {
                 convertedValue = String(convertedValue);
             }
 
@@ -35,12 +35,6 @@ function objectToArrayWithMapper(obj, mapping) {
         });
         return result;
     });
-}
-
-function checkAllowedTable(table) {
-    if (!config.allowedTables.includes(table)) {
-        throw new Error('Invalid table name');
-    }
 }
 
 function generateYearMonths(startYearMonth, endYearMonth) {
@@ -72,4 +66,4 @@ function generateYearMonths(startYearMonth, endYearMonth) {
     return yearMonths;
 }
 
-export { sleep, pick, objectToArrayWithMapper, checkAllowedTable, generateYearMonths };
+export { sleep, pick, objectToArrayWithMapper, generateYearMonths };

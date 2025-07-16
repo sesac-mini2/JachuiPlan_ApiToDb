@@ -11,14 +11,14 @@ function getRegionCdFromJson() {
     regioncdJson.map(row => {
         row.latitude = districtLocationJson[row.locatadd_nm].위도;
         row.longitude = districtLocationJson[row.locatadd_nm].경도;
-        pick(row, Object.keys(config.mapping.regionCd));
+        pick(row, Object.keys(config.mapping.regionCd.fields));
     });
     return regioncdJson;
 }
 
 // 시군구 단위 법정동코드 배열 반환
 async function getRegionCdFromDb() {
-    let list = await oracleUtil.select('REGIONCD', Object.entries(config.mapping.regionCd).map((row) => row[1]));
+    let list = await oracleUtil.select('REGIONCD', Object.values(config.mapping.regionCd.fields));
 
     // 구 단위 법정동코드 목록을 배열로 변환
     let regioncdArr = [];

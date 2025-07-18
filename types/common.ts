@@ -27,13 +27,6 @@ export interface TableMapping {
 }
 
 /**
- * 전체 매핑 설정 (확장 가능한 구조)
- */
-export interface MappingConfig {
-  [key: string]: TableMapping;
-}
-
-/**
  * API 설정 정보
  */
 export interface ApiInfo {
@@ -42,22 +35,9 @@ export interface ApiInfo {
 }
 
 /**
- * 전체 API 설정
+ * 전체 설정 객체 (config.ts에서 실제 타입 추론)
  */
-export interface ApiConfig {
-  regionCd: ApiInfo;
-  dandok: ApiInfo;
-  yeonlip: ApiInfo;
-  officeHotel: ApiInfo;
-}
-
-/**
- * 전체 설정 객체
- */
-export interface Config {
-  mapping: MappingConfig;
-  apiInfo: ApiConfig;
-}
+export type Config = import('../config/config.js').ConfigType;
 
 /**
  * 시크릿 설정
@@ -105,5 +85,6 @@ export interface ErrorInfo {
 export interface PartialData {
   collectedItems: any[];
   lastSuccessfulPage: number;
+  failedPage: number;
   totalCount: number;
 }

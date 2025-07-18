@@ -1,6 +1,25 @@
 import oracleUtil from '../util/oracle.util.js';
 
+interface PerformanceStats {
+    insertCounts: Record<string, number>;
+    errorCounts: Record<string, number>;
+    batchCounts: Record<string, number>;
+}
+
+interface PoolStatusDisplay {
+    connectionsInUse: number;
+    connectionsOpen: number;
+    poolMax: number;
+    poolMin: number;
+}
+
 class PerformanceMonitor {
+    private startTime: number | null;
+    private endTime: number | null;
+    private insertCounts: Record<string, number>;
+    private errorCounts: Record<string, number>;
+    private batchCounts: Record<string, number>;
+
     constructor() {
         this.startTime = null;
         this.endTime = null;
@@ -9,39 +28,39 @@ class PerformanceMonitor {
         this.batchCounts = {};
     }
 
-    start() {
+    start(): void {
         this.startTime = Date.now();
         console.log(`성능 모니터링 시작: ${new Date().toISOString()}`);
     }
 
-    end() {
+    end(): void {
         this.endTime = Date.now();
         console.log(`성능 모니터링 종료: ${new Date().toISOString()}`);
         this.printSummary();
     }
 
-    recordInsert(tableName, count) {
+    recordInsert(tableName: string, count: number): void {
         if (!this.insertCounts[tableName]) {
             this.insertCounts[tableName] = 0;
         }
         this.insertCounts[tableName] += count;
     }
 
-    recordError(tableName, count = 1) {
+    recordError(tableName: string, count: number = 1): void {
         if (!this.errorCounts[tableName]) {
             this.errorCounts[tableName] = 0;
         }
         this.errorCounts[tableName] += count;
     }
 
-    recordBatch(tableName, count = 1) {
+    recordBatch(tableName: string, count: number = 1): void {
         if (!this.batchCounts[tableName]) {
             this.batchCounts[tableName] = 0;
         }
         this.batchCounts[tableName] += count;
     }
 
-    printSummary() {
+    private async printSummary(): Promise<void> {
         if (!this.startTime || !this.endTime) {
             console.log("성능 모니터링이 완료되지 않았습니다.");
             return;
@@ -55,13 +74,18 @@ class PerformanceMonitor {
         console.log(`총 실행 시간: ${durationMinutes.toFixed(2)}분 (${durationSeconds.toFixed(2)}초)`);
 
         // Connection Pool 상태
-        const poolStatus = oracleUtil.getPoolStatus();
-        if (poolStatus) {
-            console.log("\n=== Connection Pool 상태 ===");
-            console.log(`사용 중인 연결: ${poolStatus.connectionsInUse}/${poolStatus.connectionsOpen}`);
-            console.log(`최대 연결 수: ${poolStatus.poolMax}`);
-            console.log(`최소 연결 수: ${poolStatus.poolMin}`);
-            console.log(`대기 중인 요청: ${poolStatus.queueLength}`);
+        try {
+            const poolStatus = await oracleUtil.getPoolStatus();
+            if (poolStatus) {
+                console.log("\n=== Connection Pool 상태 ===");
+                console.log(`사용 중인 연결: ${poolStatus.connectionsInUse}/${poolStatus.connectionsOpen}`);
+                console.log(`최대 연결 수: ${poolStatus.poolMax}`);
+                console.log(`최소 연결 수: ${poolStatus.poolMin}`);
+                // queueLength 관련 출력 제거 (OracleDB 6.x에서는 미지원)
+            }
+        } catch (error) {
+            console.log("\n=== Connection Pool 상태 확인 실패 ===");
+            console.error("Pool 상태 확인 중 오류:", error);
         }
 
         // 삽입 통계
@@ -98,12 +122,12 @@ class PerformanceMonitor {
         console.log("=========================\n");
     }
 
-    getElapsedTime() {
+    getElapsedTime(): number {
         if (!this.startTime) return 0;
         return Date.now() - this.startTime;
     }
 
-    getElapsedTimeFormatted() {
+    getElapsedTimeFormatted(): string {
         const elapsed = this.getElapsedTime();
         const seconds = Math.floor(elapsed / 1000);
         const minutes = Math.floor(seconds / 60);
@@ -117,9 +141,33 @@ class PerformanceMonitor {
             return `${seconds}초`;
         }
     }
+
+    // 통계 정보를 객체로 반환하는 메서드 추가
+    getStats(): PerformanceStats {
+        return {
+            insertCounts: { ...this.insertCounts },
+            errorCounts: { ...this.errorCounts },
+            batchCounts: { ...this.batchCounts }
+        };
+    }
+
+    // 리셋 메서드 추가
+    reset(): void {
+        this.startTime = null;
+        this.endTime = null;
+        this.insertCounts = {};
+        this.errorCounts = {};
+        this.batchCounts = {};
+    }
+
+    // 실행 중인지 확인하는 메서드
+    isRunning(): boolean {
+        return this.startTime !== null && this.endTime === null;
+    }
 }
 
 // 싱글톤 인스턴스
 const monitor = new PerformanceMonitor();
 
 export default monitor;
+export type { PerformanceStats, PoolStatusDisplay };

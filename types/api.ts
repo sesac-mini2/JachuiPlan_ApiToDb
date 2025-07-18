@@ -1,6 +1,6 @@
 // =========================== API 관련 타입 정의 ===========================
 
-import { RegionCode, YearMonth, RequestStatus, ErrorInfo, PartialData } from './common.js';
+import { RequestStatus, ErrorInfo, PartialData } from './common.js';
 
 /**
  * API 응답 헤더
@@ -37,28 +37,29 @@ export interface ApiRequestParams {
   serviceKey: string;
   pageNo: number;
   numOfRows: number;
-  LAWD_CD: RegionCode;
-  DEAL_YMD: YearMonth;
+  LAWD_CD: string;
+  DEAL_YMD: string;
 }
 
 /**
  * API 요청 결과
  */
 export interface ApiRequestResult {
-  status: RequestStatus;
-  value?: any[];
-  regionCd: RegionCode;
-  yearMonth: YearMonth;
-  error?: ErrorInfo;
-  partialData?: PartialData;
+    status: RequestStatus;
+    value?: any;
+    regionCd: string;
+    yearMonth: string;
+    error?: Error;
+    partialData?: PartialData;
+    reason?: Error;
 }
 
 /**
  * 처리 중인 요청 정보
  */
 export interface ProcessingRequest {
-  regionCd: RegionCode;
-  yearMonth: YearMonth;
+  regionCd: string;
+  yearMonth: string;
   reason?: ErrorInfo;
   startPage?: number;
   totalCount?: number;
@@ -78,5 +79,16 @@ export interface YearMonthProcessResult {
  */
 export interface RetryResult {
   succeeded: ApiRequestResult[];
-  failed: ProcessingRequest[];
+  failed: FailedRequest[];
+}
+
+/**
+ * 실패한 요청 정보 (통합 타입)
+ */
+export interface FailedRequest {
+  regionCd: string;
+  yearMonth: string;
+  reason: Error | ErrorInfo;
+  startPage?: number;
+  totalCount?: number | undefined;
 }

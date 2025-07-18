@@ -3,6 +3,7 @@
  */
 
 import type { Pool, Connection } from 'oracledb';
+import type { ApiRequestResult } from './api.js';
 
 /**
  * REGIONCD 테이블 스키마
@@ -81,5 +82,5 @@ export interface BatchInfo {
   index: number;
   startIndex: number;
   endIndex: number;
-  request: any;
+  request: ApiRequestResult;
 }

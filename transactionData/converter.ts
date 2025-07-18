@@ -3,26 +3,46 @@ import requestUtil from '../util/request.util.js';
 import oracleUtil from '../util/oracle.util.js';
 import config from '../config/config.js';
 import performanceMonitor from '../performance/monitor.js';
+import type { ConvertFunction, ColumnMapping, ApiRequestResult, RetryResult, FailedRequest, BatchInfo } from '../types/index.js';
+
+export interface ProcessingContext {
+    type: keyof typeof config.apiInfo;
+    tableName: string;
+    convertFunc: ConvertFunction;
+    columns: ColumnMapping[];
+    fieldMapping: Record<string, ColumnMapping>;
+}
 
 // ==================== 메인 함수 ====================
 
-async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr) {
+async function APItoDB(
+    type: keyof typeof config.apiInfo,
+    tableName: string,
+    convertFunc: ConvertFunction,
+    regionCdArr: string[],
+    yearMonthsArr: string[]
+): Promise<void> {
     // 공통 컨텍스트 객체 생성
-    const context = {
+    const typeMapping = config.mapping[type];
+    if (!typeMapping) {
+        throw new Error(`Mapping configuration not found for type: ${type}`);
+    }
+
+    const context: ProcessingContext = {
         type,                    // API 타입
         tableName,               // 테이블 명
         convertFunc,             // 변환 함수
-        columns: Object.values(config.mapping[type].fields), // 컬럼 배열
-        fieldMapping: config.mapping[type].fields,  // API/DB 필드간 매핑 정보
+        columns: Object.values(typeMapping.fields), // 컬럼 배열
+        fieldMapping: typeMapping.fields,  // API/DB 필드간 매핑 정보
     };
 
     // 실행 상태 데이터
-    const allFailedRequests = [];
+    const allFailedRequests: FailedRequest[] = [];
     let successfulDataCount = 0;
 
     // 1. 연월별 초기 처리
     for (const yearMonth of yearMonthsArr) {
-        const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(context.type, regionCdArr, yearMonth);
+        const { succeededRequests, partialRequests, failedRequests } = await processYearMonth(context.type as keyof typeof config.apiInfo, regionCdArr, yearMonth);
 
         // 2. 성공한 데이터 즉시 처리
         successfulDataCount += await processSuccessfulData(succeededRequests, partialRequests, context);
@@ -43,7 +63,15 @@ async function APItoDB(type, tableName, convertFunc, regionCdArr, yearMonthsArr)
 // ==================== 헬퍼 함수들 ====================
 
 // 연월별 초기 API 요청 처리
-const processYearMonth = async (type, regionCdArr, yearMonth) => {
+const processYearMonth = async (
+    type: keyof typeof config.apiInfo,
+    regionCdArr: string[],
+    yearMonth: string
+): Promise<{
+    succeededRequests: ApiRequestResult[];
+    partialRequests: ApiRequestResult[];
+    failedRequests: FailedRequest[];
+}> => {
     console.log(`\n=== ${yearMonth} 처리 시작 ===`);
 
     // API 요청을 병렬로 실행
@@ -56,9 +84,13 @@ const processYearMonth = async (type, regionCdArr, yearMonth) => {
     const allResults = await Promise.all(dataPromises);
 
     // 성공한 요청들과 실패한 요청들, 부분 성공 요청들 분리
-    const succeededRequests = allResults.filter(result => result.status === 'fulfilled');
-    const partialRequests = allResults.filter(result => result.status === 'partial');
-    const failedRequests = allResults.filter(result => result.status === 'rejected');
+    const succeededRequests = allResults.filter(result => result.status === 'fulfilled') as ApiRequestResult[];
+    const partialRequests = allResults.filter(result => result.status === 'partial') as ApiRequestResult[];
+    const failedRequests = allResults.filter(result => result.status === 'rejected').map(result => ({
+        regionCd: result.regionCd,
+        yearMonth: result.yearMonth,
+        reason: result.reason || new Error('Unknown error')
+    })) as FailedRequest[];
 
     console.log(`초기 요청 결과: ${succeededRequests.length}개 성공, ${partialRequests.length}개 부분 성공, ${failedRequests.length}개 실패`);
 
@@ -66,18 +98,18 @@ const processYearMonth = async (type, regionCdArr, yearMonth) => {
 };
 
 // 부분 성공 요청들의 재시도 정보 생성
-const createPartialRetryRequests = (partialRequests) => {
+const createPartialRetryRequests = (partialRequests: ApiRequestResult[]): FailedRequest[] => {
     return partialRequests.map(result => ({
         regionCd: result.regionCd,
         yearMonth: result.yearMonth,
-        reason: result.error,
-        startPage: result.partialData.lastSuccessfulPage + 1,
-        totalCount: result.partialData.totalCount
+        reason: result.error || new Error('Partial data collection'),
+        startPage: result.partialData ? result.partialData.lastSuccessfulPage + 1 : 1,
+        totalCount: result.partialData?.totalCount
     }));
 };
 
 // 실패한 요청들 일괄 재시도 처리
-const processFailedRequests = async (context, allFailedRequests) => {
+const processFailedRequests = async (context: ProcessingContext, allFailedRequests: FailedRequest[]): Promise<number> => {
     if (allFailedRequests.length === 0) return 0;
 
     console.log(`\n=== 실패한 요청들 일괄 재시도 시작 ===`);
@@ -87,7 +119,7 @@ const processFailedRequests = async (context, allFailedRequests) => {
 
     // 실패한 요청들을 작은 배치로 나누어 처리 (API 제한 고려)
     const batchSize = 100;
-    const batches = [];
+    const batches: FailedRequest[][] = [];
 
     for (let i = 0; i < allFailedRequests.length; i += batchSize) {
         batches.push(allFailedRequests.slice(i, i + batchSize));
@@ -99,7 +131,7 @@ const processFailedRequests = async (context, allFailedRequests) => {
         // 배치 간 대기를 미리 시작 (병렬 처리)
         const waitPromise = sleep(1000);
 
-        const retryResult = await retryFailedRequests(context.type, batch);
+        const retryResult = await retryFailedRequests(context.type as keyof typeof config.apiInfo, batch);
 
         // 재시도 성공한 데이터 처리
         if (retryResult.succeeded.length > 0) {
@@ -126,7 +158,11 @@ const processFailedRequests = async (context, allFailedRequests) => {
 };
 
 // 실패한 요청들을 재시도하는 함수
-const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
+const retryFailedRequests = async (
+    type: keyof typeof config.apiInfo,
+    failedRequests: FailedRequest[],
+    maxRetries: number = 3
+): Promise<RetryResult> => {
     let retryCount = 0;
     let currentFailedRequests = [...failedRequests];
 
@@ -141,13 +177,13 @@ const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
             console.log(`재시도: ${regionCd} ${yearMonth} (페이지 ${startPage}부터)`);
 
             return requestUtil.recursiveRequestRTMSDataSvc(type, regionCd, yearMonth, startPage)
-                .then(data => ({ status: 'fulfilled', value: data, regionCd, yearMonth }))
+                .then(data => ({ status: 'fulfilled' as const, value: data, regionCd, yearMonth }))
                 .catch(error => {
                     // 부분 데이터가 있는 경우 처리
                     if (error.partialData && error.partialData.collectedItems.length > 0) {
                         console.warn(`재시도 중 부분 데이터 수집됨 - ${regionCd} ${yearMonth}: ${error.partialData.collectedItems.length}개 항목 (페이지 ${error.partialData.lastSuccessfulPage}까지)`);
                         return {
-                            status: 'partial',
+                            status: 'partial' as const,
                             value: error.partialData.collectedItems,
                             regionCd,
                             yearMonth,
@@ -155,16 +191,20 @@ const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
                             partialData: error.partialData
                         };
                     }
-                    return { status: 'rejected', reason: error, regionCd, yearMonth };
+                    return { status: 'rejected' as const, reason: error, regionCd, yearMonth };
                 });
         });
 
         const retryResults = await Promise.all(retryPromises);
 
         // 성공한 요청들과 여전히 실패한 요청들, 부분 성공 요청들 분리
-        const succeededRequests = retryResults.filter(result => result.status === 'fulfilled');
-        const partialRequests = retryResults.filter(result => result.status === 'partial');
-        const stillFailedRequests = retryResults.filter(result => result.status === 'rejected');
+        const succeededRequests = retryResults.filter(result => result.status === 'fulfilled') as ApiRequestResult[];
+        const partialRequests = retryResults.filter(result => result.status === 'partial') as ApiRequestResult[];
+        const stillFailedRequests = retryResults.filter(result => result.status === 'rejected').map(result => ({
+            regionCd: result.regionCd,
+            yearMonth: result.yearMonth,
+            reason: result.reason || new Error('Unknown error')
+        })) as FailedRequest[];
 
         console.log(`재시도 결과: ${succeededRequests.length}개 성공, ${partialRequests.length}개 부분 성공, ${stillFailedRequests.length}개 실패`);
 
@@ -175,9 +215,9 @@ const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
         const newPartialRetryRequests = partialRequests.map(result => ({
             regionCd: result.regionCd,
             yearMonth: result.yearMonth,
-            reason: result.error,
-            startPage: result.partialData.lastSuccessfulPage + 1,
-            totalCount: result.partialData.totalCount
+            reason: result.error || new Error('Partial data collection'),
+            startPage: result.partialData ? result.partialData.lastSuccessfulPage + 1 : 1,
+            totalCount: result.partialData?.totalCount
         }));
 
         // 다음 재시도를 위해 완전 실패한 요청들과 부분 성공 요청들 결합
@@ -198,25 +238,32 @@ const retryFailedRequests = async (type, failedRequests, maxRetries = 3) => {
 };
 
 // 데이터 변환 담당
-const transformData = (rawData, context) => {
+const transformData = (rawData: any[], context: ProcessingContext): any[][] => {
     const convertedData = rawData.map(context.convertFunc);
     return objectToArrayWithMapper(convertedData, context.fieldMapping);
 };
 
 // 변환된 데이터를 DB에 삽입하는 최적화된 함수
-const insertTransformedDataToDB = async (transformedData, requests, context) => {
+const insertTransformedDataToDB = async (
+    transformedData: any[][][],
+    requests: ApiRequestResult[],
+    context: ProcessingContext
+): Promise<number> => {
     // 모든 배치를 하나로 합치기
-    const combinedData = [];
-    const batchInfo = [];
+    const combinedData: any[][] = [];
+    const batchInfo: BatchInfo[] = [];
 
     transformedData.forEach((batch, index) => {
+        const request = requests[index];
+        if (!request) return; // 안전 가드
+
         const startIndex = combinedData.length;
         combinedData.push(...batch);
         batchInfo.push({
             index,
             startIndex,
             endIndex: combinedData.length - 1,
-            request: requests[index]
+            request
         });
     });
 
@@ -236,7 +283,7 @@ const insertTransformedDataToDB = async (transformedData, requests, context) => 
         console.log(`DB 삽입 완료: ${insertedRows}개 행 (요청 ${requests.length}개)`);
         return requests.length; // 성공한 요청 개수 반환
     } catch (error) {
-        console.error(`대량 삽입 실패, 개별 삽입으로 전환:`, error.message);
+        console.error(`대량 삽입 실패, 개별 삽입으로 전환:`, (error as Error).message);
         performanceMonitor.recordError(context.tableName, 1);
 
         // 대량 삽입 실패 시 개별 배치로 폴백
@@ -253,7 +300,7 @@ const insertTransformedDataToDB = async (transformedData, requests, context) => 
                 successCount++;
                 console.log(`개별 삽입 성공: ${batch.request.regionCd} ${batch.request.yearMonth}`);
             } catch (batchError) {
-                console.error(`개별 삽입 실패 - ${batch.request.regionCd} ${batch.request.yearMonth}:`, batchError.message);
+                console.error(`개별 삽입 실패 - ${batch.request.regionCd} ${batch.request.yearMonth}:`, (batchError as Error).message);
                 performanceMonitor.recordError(context.tableName, 1);
             }
         }
@@ -262,7 +309,11 @@ const insertTransformedDataToDB = async (transformedData, requests, context) => 
 };
 
 // 성공한 데이터 즉시 처리
-const processSuccessfulData = async (succeededRequests, partialRequests, context) => {
+const processSuccessfulData = async (
+    succeededRequests: ApiRequestResult[],
+    partialRequests: ApiRequestResult[],
+    context: ProcessingContext
+): Promise<number> => {
     const allSuccessfulRequests = [...succeededRequests, ...partialRequests];
     if (allSuccessfulRequests.length === 0) return 0;
 
@@ -274,11 +325,11 @@ const processSuccessfulData = async (succeededRequests, partialRequests, context
 };
 
 // 에러 처리 및 상태 분류
-const processApiResponse = (regionCd, yearMonth, data) => {
+const processApiResponse = (regionCd: string, yearMonth: string, data: any): ApiRequestResult => {
     return { status: 'fulfilled', value: data, regionCd, yearMonth };
 };
 
-const processApiError = (regionCd, yearMonth, error) => {
+const processApiError = (regionCd: string, yearMonth: string, error: any): ApiRequestResult => {
     // 부분 데이터가 있는 경우 처리
     if (error.partialData && error.partialData.collectedItems.length > 0) {
         console.warn(`부분 데이터 수집됨 - ${regionCd} ${yearMonth}: ${error.partialData.collectedItems.length}개 항목 (페이지 ${error.partialData.lastSuccessfulPage}까지)`);
@@ -295,3 +346,4 @@ const processApiError = (regionCd, yearMonth, error) => {
 };
 
 export default { APItoDB };
+export type { ApiRequestResult, FailedRequest, RetryResult };

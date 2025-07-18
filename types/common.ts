@@ -55,15 +55,6 @@ export interface Secrets {
   };
 }
 
-/**
- * 년월 문자열 타입 (예: "202411")
- */
-export type YearMonth = string;
-
-/**
- * 지역코드 타입
- */
-export type RegionCode = string;
 
 /**
  * 요청 상태

@@ -17,7 +17,7 @@ export interface RegionData {
 /**
  * 단독/다가구 변환 데이터 (API → DB 중간 형태)
  */
-export interface BuildingData {
+export interface DandokData {
   buildingType: number;
   sggCd: string;
   umdNm: string;

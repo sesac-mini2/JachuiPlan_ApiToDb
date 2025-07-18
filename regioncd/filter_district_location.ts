@@ -1,8 +1,30 @@
 import fs from 'fs';
 
-const districtLocationJson = JSON.parse(fs.readFileSync('./regioncd/district_location.json', 'utf8'));
+interface DistrictLocationData {
+    시도: string;
+    시군구?: string;
+    읍면동구?: string;
+    읍면리동?: string;
+    위도: number;
+    경도: number;
+}
 
-let newJson = {};
+interface DistrictLocationJson {
+    [key: string]: DistrictLocationData[];
+}
+
+interface FilteredLocation {
+    위도: number;
+    경도: number;
+}
+
+interface FilteredDistrictLocationJson {
+    [key: string]: FilteredLocation;
+}
+
+const districtLocationJson: DistrictLocationJson = JSON.parse(fs.readFileSync('./regioncd/district_location.json', 'utf8'));
+
+const newJson: FilteredDistrictLocationJson = {};
 
 // JSON 데이터 필터링
 Object.entries(districtLocationJson).forEach(([key, list]) => {
@@ -18,3 +40,5 @@ Object.entries(districtLocationJson).forEach(([key, list]) => {
 });
 
 fs.writeFileSync('./regioncd/district_location_filtered.json', JSON.stringify(newJson, null, 4), 'utf8');
+
+export type { DistrictLocationData, FilteredLocation, FilteredDistrictLocationJson };

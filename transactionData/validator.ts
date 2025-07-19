@@ -3,8 +3,8 @@ import oracleUtil from '../util/oracle.util.js';
 
 // 간단한 로그 유틸리티
 const log = {
-    info: (message) => console.log(`[INFO] ${message}`),
-    error: (message) => console.error(`[ERROR] ${message}`)
+    info: (message: string): void => console.log(`[INFO] ${message}`),
+    error: (message: string): void => console.error(`[ERROR] ${message}`)
 };
 
 // ==================== 검증 함수들 ====================
@@ -12,7 +12,7 @@ const log = {
 /**
  * API 호출 제한량 검증
  */
-const validateApiLimits = (type, regionCdArr, yearMonthsArr) => {
+const validateApiLimits = (type: keyof typeof config.apiInfo, regionCdArr: string[], yearMonthsArr: string[]): boolean => {
     const totalRequests = regionCdArr.length * yearMonthsArr.length;
     const dailyLimit = config.apiInfo[type].limitPerDay;
 
@@ -27,7 +27,7 @@ const validateApiLimits = (type, regionCdArr, yearMonthsArr) => {
 /**
  * 설정 파일 검증
  */
-const validateConfig = (type) => {
+const validateConfig = (type: keyof typeof config.apiInfo): boolean => {
     if (!config.apiInfo || !config.apiInfo[type]) {
         throw new Error(`API 설정 정보가 없습니다: ${type}`);
     }
@@ -47,7 +47,7 @@ const validateConfig = (type) => {
 /**
  * 지역 코드 형식 검증
  */
-const validateRegionCodes = (regionCdArr) => {
+const validateRegionCodes = (regionCdArr: string[]): boolean => {
     for (const regionCd of regionCdArr) {
         if (!regionCd || typeof regionCd !== 'string') {
             throw new Error(`올바르지 않은 지역 코드: ${regionCd}`);
@@ -66,7 +66,7 @@ const validateRegionCodes = (regionCdArr) => {
 /**
  * 데이터베이스 테이블 존재 검증
  */
-const validateTableExists = async (type) => {
+const validateTableExists = async (type: keyof typeof config.mapping): Promise<boolean> => {
     const tableMapping = config.mapping[type];
     if (!tableMapping || !tableMapping.meta || !tableMapping.meta.table) {
         throw new Error(`테이블 매핑 정보를 찾을 수 없습니다: ${type}`);
@@ -86,7 +86,7 @@ const validateTableExists = async (type) => {
 /**
  * 전체 초기 검증 실행
  */
-const validateAll = async (type, regionCdArr, yearMonthsArr) => {
+const validateAll = async (type: keyof typeof config.apiInfo, regionCdArr: string[], yearMonthsArr: string[]): Promise<boolean> => {
     log.info(`=== ${type} 초기 검증 시작 ===`);
 
     try {
@@ -106,7 +106,7 @@ const validateAll = async (type, regionCdArr, yearMonthsArr) => {
         return true;
 
     } catch (error) {
-        log.error(`초기 검증 실패: ${error.message}`);
+        log.error(`초기 검증 실패: ${(error as Error).message}`);
         throw error;
     }
 };

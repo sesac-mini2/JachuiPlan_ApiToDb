@@ -84,7 +84,7 @@ const mapping = {
             'offiNm': { column_name: "BUILDING_NAME", type: "STRING", maxSize: 1200 }
         }
     }
-};
+} as const;
 
 /**
  * API 엔드포인트 정보 설정
@@ -115,6 +115,9 @@ const apiInfo = {
         url: "https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
         limitPerDay: 10000
     }
-}
+} as const;
 
-export default { mapping, apiInfo };
+const config = { mapping, apiInfo };
+
+export default config;
+export type ConfigType = typeof config;

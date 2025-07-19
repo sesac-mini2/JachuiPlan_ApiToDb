@@ -7,7 +7,7 @@ import convertFunctions from "./transactionData/convertFunctions.js";
 import oracleUtil from './util/oracle.util.js';
 import performanceMonitor from './performance/monitor.js';
 
-async function main() {
+async function main(): Promise<void> {
     // 성능 모니터링 시작
     performanceMonitor.start();
 
@@ -21,17 +21,17 @@ async function main() {
         console.log("초기 Pool 상태:", poolStatus);
 
         // node index.js [startYearMonth] [endYearMonth]
-        const startYearMonth = process.argv[2] || "202411";
-        const endYearMonth = process.argv[3] || "202411";
+        const startYearMonth: string = process.argv[2] || "202411";
+        const endYearMonth: string = process.argv[3] || "202411";
 
         // 오라클 DB에 API로 가져온 법정동코드, 행정구역 한국어 이름 데이터 삽입
         console.log("지역코드 데이터를 처리합니다...");
-        let gu = regionCd.getRegionCdFromJson();
+        const gu = regionCd.getRegionCdFromJson();
         const arr = objectToArrayWithMapper(gu, config.mapping.regionCd.fields);
         console.log(`${arr.length}개의 지역코드 데이터를 처리합니다.`);
 
         await oracleUtil.deleteRegionCdTableItems();
-        const insertedRegionCd = await oracleUtil.bulkInsert('REGIONCD', Object.values(config.mapping.regionCd.fields), arr);
+        const insertedRegionCd: number = await oracleUtil.bulkInsert('REGIONCD', Object.values(config.mapping.regionCd.fields), arr);
 
         // 성능 모니터링 기록
         performanceMonitor.recordInsert('REGIONCD', insertedRegionCd);
@@ -39,7 +39,7 @@ async function main() {
 
         // API 데이터 처리 준비
         const regionCdArr = await regionCd.getRegionCdFromDb();
-        const yearMonthsArr = generateYearMonths(startYearMonth, endYearMonth);
+        const yearMonthsArr: string[] = generateYearMonths(startYearMonth, endYearMonth);
 
         console.log(`처리할 지역: ${regionCdArr.length}개`);
         console.log(`처리할 기간: ${yearMonthsArr.length}개월 (${startYearMonth} ~ ${endYearMonth})`);

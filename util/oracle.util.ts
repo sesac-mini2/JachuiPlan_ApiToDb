@@ -1,16 +1,18 @@
 import oracledb from 'oracledb';
+import type { Connection, Pool, PoolAttributes } from 'oracledb';
+import type { ColumnMapping } from '../types/index.js';
 import secrets from "../config/secrets.json" with { type: "json" };
 
 // Connection Pool 설정
-let pool = null;
+let pool: Pool | null = null;
 
-async function createPool() {
+async function createPool(): Promise<Pool> {
     if (pool) {
         return pool;
     }
 
     try {
-        pool = await oracledb.createPool({
+        const poolConfig: PoolAttributes = {
             user: secrets.oracle.user,
             password: secrets.oracle.password,
             connectionString: secrets.oracle.connectString,
@@ -20,11 +22,12 @@ async function createPool() {
             poolTimeout: 60,               // 커넥션 타임아웃 (초)
             poolPingInterval: 60,          // 커넥션 상태 체크 간격 (초)
             stmtCacheSize: 30,             // 준비된 문장 캐시 크기
-            queueRequests: true,           // 큐 요청 활성화
             queueMax: 100,                 // 큐 최대 크기
             queueTimeout: 60000,           // 큐 타임아웃 (밀리초)
             enableStatistics: true         // 통계 활성화
-        });
+        };
+
+        pool = await oracledb.createPool(poolConfig);
 
         console.log("Connection Pool이 성공적으로 생성되었습니다.");
         console.log(`Pool 설정: Min=${pool.poolMin}, Max=${pool.poolMax}, Increment=${pool.poolIncrement}`);
@@ -35,78 +38,85 @@ async function createPool() {
     }
 }
 
-async function getConnection() {
+async function getConnection(): Promise<Connection> {
     if (!pool) {
         await createPool();
     }
-    return pool.getConnection();
+    // 바로 위에서 pool이 null이 아님을 보장했으므로, TypeScript에게 pool이 null이 아님을 확신시킴
+    return pool!.getConnection();
 }
 
-async function connectionHandler(func) {
-    let connection;
+async function connectionHandler<T>(func: (connection: Connection) => Promise<T>): Promise<T> {
+    let connection: Connection | undefined;
     try {
         connection = await getConnection();
         return await func(connection);
     } catch (err) {
-        console.error("Database 작업 중 오류 발생:", err);
+        console.error("Connection handler 에러:", err);
         throw err;
     } finally {
         if (connection) {
             try {
-                await connection.close(); // Pool로 반환
+                await connection.close();
             } catch (err) {
-                console.error("Connection 반환 중 오류:", err);
+                console.error("Connection 닫기 실패:", err);
             }
         }
     }
 }
 
-// Pool 종료 함수
-async function closePool() {
+async function closePool(): Promise<void> {
     if (pool) {
         try {
-            await pool.close(10); // 10초 대기 후 강제 종료
-            console.log("Connection Pool이 성공적으로 종료되었습니다.");
+            await pool.close();
             pool = null;
+            console.log("Connection Pool이 성공적으로 닫혔습니다.");
         } catch (err) {
-            console.error("Connection Pool 종료 중 오류:", err);
+            console.error("Connection Pool 닫기 실패:", err);
+            throw err;
         }
     }
 }
 
-// Pool 상태 확인 함수
-function getPoolStatus() {
+interface PoolStatus {
+    connectionsOpen: number;
+    connectionsInUse: number;
+    queueTimeout: number;
+    poolMin: number;
+    poolMax: number;
+    poolIncrement: number;
+    poolTimeout: number;
+    poolPingInterval: number;
+    stmtCacheSize: number;
+}
+
+async function getPoolStatus(): Promise<PoolStatus | null> {
     if (!pool) {
         return null;
     }
 
-    const status = {
-        connectionsInUse: pool.connectionsInUse,
+    const status: PoolStatus = {
         connectionsOpen: pool.connectionsOpen,
-        poolMax: pool.poolMax,
+        connectionsInUse: pool.connectionsInUse,
+        queueTimeout: pool.queueTimeout,
         poolMin: pool.poolMin,
-        queueLength: pool.queueLength || 0,
-        queueRequests: pool.queueRequests || false,
-        queueMax: pool.queueMax || 0,
-        queueTimeout: pool.queueTimeout || 0,
-        stmtCacheSize: pool.stmtCacheSize || 0,
-        poolPingInterval: pool.poolPingInterval || 0,
-        poolTimeout: pool.poolTimeout || 0
+        poolMax: pool.poolMax,
+        poolIncrement: pool.poolIncrement,
+        poolTimeout: pool.poolTimeout,
+        poolPingInterval: pool.poolPingInterval,
+        stmtCacheSize: pool.stmtCacheSize
     };
-
-    // 사용률 계산
-    status.usagePercentage = ((status.connectionsInUse / status.poolMax) * 100).toFixed(2);
-    status.isHealthy = status.connectionsInUse < status.poolMax * 0.8; // 80% 미만이면 정상
 
     return status;
 }
 
-async function checkTableExists(table) {
+async function checkTableExists(table: string): Promise<boolean> {
     return await connectionHandler(async (connection) => {
         try {
             const sql = `SELECT COUNT(*) AS table_count FROM USER_TABLES WHERE TABLE_NAME = :table_name`;
             const result = await connection.execute(sql, [table.toUpperCase()], { outFormat: oracledb.OUT_FORMAT_OBJECT });
-            return result.rows[0].TABLE_COUNT > 0;
+            const rows = result.rows as { TABLE_COUNT: number }[] | undefined;
+            return (rows?.[0]?.TABLE_COUNT ?? 0) > 0;
         } catch (err) {
             console.error(`테이블 존재 확인 실패: ${table}`, err);
             return false;
@@ -114,7 +124,7 @@ async function checkTableExists(table) {
     });
 }
 
-async function select(table, columns) {
+async function select(table: string, columns: ColumnMapping[]): Promise<any[]> {
     return await connectionHandler(async (connection) => {
         // TODO: 테이블의 ID 칼럼을 가져오도록 하드코딩 해놨는데, 칼럼명이 ID가 아닐 수 있음.
         // TODO: 현재 매핑은 api로 가져온 데이터와 테이블 칼럼이 1:1 대응하는 경우를 대응하는 중 (API에는 ID가 없음)
@@ -122,7 +132,8 @@ async function select(table, columns) {
         sql += columns.map(col => col.column_name).join(', ');
         sql += ` from ${table}`;
         let result = await connection.execute(sql, [], { resultSet: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
-        const rs = result.resultSet; let row, rows = [];
+        const rs = result.resultSet!;
+        let row: any, rows: any[] = [];
         while ((row = await rs.getRow())) {
             rows.push(row);
         }
@@ -131,7 +142,7 @@ async function select(table, columns) {
     });
 }
 
-async function insertMany(table, columns, rows) {
+async function insertMany(table: string, columns: ColumnMapping[], rows: any[][]): Promise<number> {
     return await connectionHandler(async (connection) => {
         try {
             // Insert some data
@@ -147,68 +158,76 @@ async function insertMany(table, columns, rows) {
                 bindDefs: columns.map(col => (col.type === "STRING" ?
                         {
                             type: oracledb[col.type],
-                            maxSize:  col.maxSize // STRING 타입에 대해 maxSize 지정
-                        }
-                        :
+                            maxSize: col.maxSize // STRING 타입에 대해 maxSize 지정
+                        } :
                         {
                             type: oracledb[col.type]
                         }
-                )),
-                batchErrors: true       // 배치 오류 활성화
+                    )
+                )
             };
 
-            let result = await connection.executeMany(sql, rows, options);
-
-            // 배치 오류가 있는 경우 로그
-            if (result.batchErrors && result.batchErrors.length > 0) {
-                console.warn(`배치 삽입 중 일부 오류 발생 (${table}): ${result.batchErrors.length}개`);
-                result.batchErrors.forEach((error, index) => {
-                    console.warn(`  행 ${index}: ${error.message}`);
-                });
-            }
-
+            const result = await connection.executeMany(sql, rows, options);
             await connection.commit();
-            console.log(`${result.rowsAffected}개 행이 ${table}에 삽입되었습니다.`);
-            return result.rowsAffected;
-        } catch (error) {
-            console.error(`DB 삽입 에러 (${table}):`, error.message);
+            return result.rowsAffected || 0;
+        } catch (err) {
             await connection.rollback();
-            throw error;
+            console.error("insertMany 에러:", err);
+            throw err;
         }
     });
 }
 
-async function createRegionCdTable() {
+async function createRegionCdTable(): Promise<void> {
     await connectionHandler(async (connection) => {
-        await connection.execute(`begin execute immediate 'drop table REGIONCD'; exception when others then if sqlcode <> -942 then raise; end if; end;`);
-        await connection.execute(`create table REGIONCD (id number generated always as identity, sido_cd VARCHAR2(2) NOT NULL, sgg_cd VARCHAR2(3), umd_cd VARCHAR2(3), locatadd_nm VARCHAR2(100), latitude NUMBER(11, 8) NOT NULL, longitude NUMBER(11, 8) NOT NULL, primary key (id))`);
+        try {
+            const sql = `CREATE TABLE REGIONCD (
+                ID NUMBER(10) PRIMARY KEY,
+                SIDO_CD VARCHAR2(2) NOT NULL,
+                SGG_CD VARCHAR2(3) NOT NULL,
+                UMD_CD VARCHAR2(3) NOT NULL,
+                LOCATADD_NM VARCHAR2(100) NOT NULL,
+                LATITUDE NUMBER(10,7),
+                LONGITUDE NUMBER(10,7)
+            )`;
+
+            await connection.execute(sql);
+            console.log("REGIONCD 테이블이 성공적으로 생성되었습니다.");
+        } catch (err: any) {
+            if (err.errorNum === 955) { // ORA-00955: name is already used by an existing object
+                console.log("REGIONCD 테이블이 이미 존재합니다.");
+            } else {
+                console.error("REGIONCD 테이블 생성 실패:", err);
+                throw err;
+            }
+        }
     });
 }
 
-async function deleteRegionCdTableItems() {
-    return await connectionHandler(async (connection) => {
+async function deleteRegionCdTableItems(): Promise<void> {
+    await connectionHandler(async (connection) => {
         try {
-            const result = await connection.execute(`DELETE FROM REGIONCD WHERE 1=1`);
+            const sql = `DELETE FROM REGIONCD`;
+            await connection.execute(sql);
             await connection.commit();
-            console.log(`${result.rowsAffected}개 행이 REGIONCD 테이블에서 삭제되었습니다.`);
-            return result.rowsAffected;
-        } catch (error) {
-            console.error("REGIONCD 테이블 삭제 중 오류:", error.message);
+            console.log("REGIONCD 테이블의 모든 데이터가 삭제되었습니다.");
+        } catch (err) {
             await connection.rollback();
-            throw error;
+            console.error("REGIONCD 테이블 데이터 삭제 실패:", err);
+            throw err;
         }
     });
 }
 
 // 대량 삽입을 위한 최적화된 함수
-async function bulkInsert(table, columns, rows, batchSize = 1000) {
+async function bulkInsert(table: string, columns: ColumnMapping[], rows: any[][], batchSize: number = 1000): Promise<number> {
     if (!rows || rows.length === 0) {
         console.log("삽입할 데이터가 없습니다.");
         return 0;
     }
 
     let totalInserted = 0;
-    const batches = [];
+    const batches: any[][][] = [];
 
     // 배치 단위로 분할
     for (let i = 0; i < rows.length; i += batchSize) {
@@ -219,11 +238,13 @@ async function bulkInsert(table, columns, rows, batchSize = 1000) {
 
     for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
+        if (!batch) continue;
+
         try {
             const inserted = await insertMany(table, columns, batch);
             totalInserted += inserted;
             console.log(`배치 ${i + 1}/${batches.length} 완료: ${inserted}개 행 삽입`);
-        } catch (error) {
+        } catch (error: any) {
             console.error(`배치 ${i + 1}/${batches.length} 실패:`, error.message);
             // 배치 실패 시 개별 행 삽입 시도
             console.log("개별 행 삽입을 시도합니다...");
@@ -231,7 +252,7 @@ async function bulkInsert(table, columns, rows, batchSize = 1000) {
                 try {
                     await insertMany(table, columns, [row]);
                     totalInserted++;
-                } catch (rowError) {
+                } catch (rowError: any) {
                     console.error("개별 행 삽입 실패:", rowError.message);
                 }
             }

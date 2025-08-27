@@ -272,8 +272,8 @@ const insertTransformedDataToDB = async (
     }
 
     try {
-        // 대량 삽입 사용 (배치 크기 최적화)
-        const batchSize = Math.min(1000, Math.max(100, Math.floor(combinedData.length / 10)));
+        // 대량 삽입 사용
+        const batchSize = Math.min(1000, combinedData.length);
         const insertedRows = await oracleUtil.bulkInsert(context.tableName, context.columns, combinedData, batchSize);
 
         // 성능 모니터링 기록

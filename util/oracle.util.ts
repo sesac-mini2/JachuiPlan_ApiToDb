@@ -17,7 +17,7 @@ async function createPool(): Promise<Pool> {
             password: secrets.oracle.password,
             connectionString: secrets.oracle.connectString,
             poolMin: 2,                    // 최소 커넥션 수
-            poolMax: 10,                   // 최대 커넥션 수
+            poolMax: 3,                    // 최대 커넥션 수
             poolIncrement: 1,              // 커넥션 증가량
             poolTimeout: 60,               // 커넥션 타임아웃 (초)
             poolPingInterval: 60,          // 커넥션 상태 체크 간격 (초)
